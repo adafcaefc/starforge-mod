@@ -1,0 +1,17 @@
+{
+	"geode": "4.0.1",
+	"gd": {
+		"win": "2.2074",
+		"android": "2.2074",
+		"mac": "2.2074",
+		"ios": "2.2074"
+	},
+	"id": "adaf_and_rainixgd.aboard_the_ss_starforge",
+	"name": "Aboard the SS Starforge",
+	"version": "v1.0.0",
+	"developer": "adaf and RainixGD",
+	"description": "",
+	"dependencies": {
+		"geode.node-ids": ">=v1.20.0"
+	}
+}
