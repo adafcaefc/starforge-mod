@@ -6,7 +6,6 @@ import { OrbitControls, Environment, Center } from "@react-three/drei";
 import * as THREE from "three";
 import { Vector3 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { LAPTOP_MODEL_BASE64 } from "../assets/laptop-model";
 
 // Create a component for the laptop with WebSocket screen
 function Model({
@@ -32,30 +31,14 @@ function Model({
   const width = 440;
   const height = 240;
   
-  // Load the MacBook model from base64 string
+  // Load the MacBook model from public folder
   useEffect(() => {
-  const loader = new GLTFLoader();
-
-  // Remove optional data URI prefix if present
-  const base64 = LAPTOP_MODEL_BASE64.replace(/^data:model\/gltf-binary;base64,/, '');
-
-  // Decode base64 to a binary string
-  const binaryStr = atob(base64);
-
-  // Convert binary string to ArrayBuffer
-  const len = binaryStr.length;
-  const buffer = new ArrayBuffer(len);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < len; i++) {
-    view[i] = binaryStr.charCodeAt(i);
-  }
-
-  // Pass the ArrayBuffer to parse()
-  loader.parse(buffer, '', (gltf) => {
-    setScene(gltf.scene);
-  }, (error) => {
-    console.error('Failed to parse GLB:', error);
-  });
+    const loader = new GLTFLoader();
+    loader.load('/models/macbook.glb', (gltf) => {
+      setScene(gltf.scene);
+    }, undefined, (error) => {
+      console.error('Failed to load GLB:', error);
+    });
   }, []);
   
   // Decode Base64 → ArrayBuffer

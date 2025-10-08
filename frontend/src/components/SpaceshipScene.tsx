@@ -5,7 +5,6 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Environment, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { LAPTOP_MODEL_BASE64 } from "../assets/laptop-model";
 
 function Meteor({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -64,18 +63,10 @@ function LaptopModel({ gameModeRef, playerStateRef }: {
 
   useEffect(() => {
     const loader = new GLTFLoader();
-    const base64 = LAPTOP_MODEL_BASE64.replace(/^data:model\/gltf-binary;base64,/, '');
-    const binaryStr = atob(base64);
-    const len = binaryStr.length;
-    const buffer = new ArrayBuffer(len);
-    const view = new Uint8Array(buffer);
-    for (let i = 0; i < len; i++) {
-      view[i] = binaryStr.charCodeAt(i);
-    }
-    loader.parse(buffer, '', (gltf) => {
+    loader.load('/models/ufo1.glb', (gltf) => {
       setScene(gltf.scene);
-    }, (error) => {
-      console.error('Failed to parse GLB:', error);
+    }, undefined, (error) => {
+      console.error('Failed to load GLB:', error);
     });
   }, []);
 

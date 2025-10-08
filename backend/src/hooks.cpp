@@ -3,6 +3,7 @@
 #include <Geode/modify/PlayLayer.hpp>
 #include "spc_state.h"
 #include "spc_projector.h"
+#include "spc_webserver.h"
 
 using namespace geode::prelude;
 
@@ -58,6 +59,7 @@ class $modify(cocos2d::CCScheduler) {
         if (!init) {
             init = true;
             spc::projector::recorder.start();
+            std::thread(spc::webserver::run).detach();
         }
 
         cocos2d::CCScheduler::update(dt);
