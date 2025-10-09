@@ -22,6 +22,7 @@ namespace spc {
         else if (player->m_isDart) state.m_mode = spc::State::PlayerState::Mode::Wave;
         else if (player->m_isRobot) state.m_mode = spc::State::PlayerState::Mode::Robot;
         else if (player->m_isSpider) state.m_mode = spc::State::PlayerState::Mode::Spider;
+        else if (player->m_isSwing) state.m_mode = spc::State::PlayerState::Mode::Swing;
         else state.m_mode = spc::State::PlayerState::Mode::Cube;
     }
 

@@ -33,6 +33,7 @@ namespace spc {
                 Wave = 4,
                 Robot = 5,
                 Spider = 6,
+                Swing = 7,
             };
             float m_x = 0.0f;
             float m_y = 0.0f;
