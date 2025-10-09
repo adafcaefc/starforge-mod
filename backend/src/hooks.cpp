@@ -49,6 +49,33 @@ namespace spc {
             if (auto p2 = pl->m_player2) {
                 spcProcessPlayer(p2, state->m_player2);
             }
+
+            if (auto em = pl->m_effectManager)
+            {
+                static const auto loadColorAction = [](int tag, spc::State::ColorRGB& color, ColorAction* ca) {
+                    color.m_r = ca->m_color.r;
+                    color.m_g = ca->m_color.g;
+                    color.m_b = ca->m_color.b;
+                    };
+                if (auto ca = em->getColorAction(1000)) {
+                    loadColorAction(1000, state->m_bgColor, ca);
+                }
+                if (auto ca = em->getColorAction(1001)) {
+                    loadColorAction(1002, state->m_gColor, ca);
+                }
+                if (auto ca = em->getColorAction(1002)) {
+                    loadColorAction(1003, state->m_lineColor, ca);
+                }
+                if (auto ca = em->getColorAction(1009)) {
+                    loadColorAction(1004, state->m_g2Color, ca);
+                }
+                if (auto ca = em->getColorAction(1013)) {
+                    loadColorAction(1010, state->m_mgColor, ca);
+                }
+                if (auto ca = em->getColorAction(1014)) {
+                    loadColorAction(1010, state->m_mg2Color, ca);
+                }
+            }       
         }
     }
 }
@@ -56,14 +83,17 @@ namespace spc {
 class $modify(cocos2d::CCScheduler) {
     void update(float dt) {
         static bool init = false;
+
+        auto recorder = spc::State::get()->recorder;
+
         if (!init) {
             init = true;
-            spc::projector::recorder.start();
+            recorder->start();
             std::thread(spc::webserver::run).detach();
         }
 
         cocos2d::CCScheduler::update(dt);
-        spc::projector::recorder.capture_frame();
+        recorder->capture_frame();
         spc::loadState();
     }
 };

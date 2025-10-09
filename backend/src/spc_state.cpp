@@ -23,6 +23,7 @@ namespace spc {
               {"rotation", m_player2.m_rotation},
               {"yVelocity", m_player2.m_yVelocity}}},
             {"bgColor", {m_bgColor.m_r, m_bgColor.m_g, m_bgColor.m_b}},
+            {"lineColor", {m_lineColor.m_r, m_lineColor.m_g, m_lineColor.m_b}},
             {"gColor", {m_gColor.m_r, m_gColor.m_g, m_gColor.m_b}},
             {"g2Color", {m_g2Color.m_r, m_g2Color.m_g, m_g2Color.m_b}},
             {"mgColor", {m_mgColor.m_r, m_mgColor.m_g, m_mgColor.m_b}},

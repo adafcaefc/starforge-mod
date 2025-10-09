@@ -3,9 +3,15 @@
 #include <cstdint>
 #include <string>
 
+#include "spc_projector.h"
+#include "spc_socket.h"
+
 namespace spc {
     class State {
     public:
+        std::shared_ptr<projector::Recorder> recorder = std::make_shared<projector::Recorder>();
+        std::shared_ptr<socket::SocketServer> server = socket::SocketServer::create(6671u);
+
         struct ColorRGB {
             uint8_t m_r = 0;
             uint8_t m_g = 0;  
@@ -47,6 +53,7 @@ namespace spc {
         PlayerState m_player1;
         PlayerState m_player2;
         ColorRGB m_bgColor = {0, 0, 0};
+        ColorRGB m_lineColor = { 0, 0, 0 };
         ColorRGB m_gColor = {0, 0, 0};
         ColorRGB m_g2Color = {0, 0, 0};
         ColorRGB m_mgColor = {0, 0, 0};

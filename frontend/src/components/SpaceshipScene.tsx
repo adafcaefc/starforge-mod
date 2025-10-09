@@ -9,7 +9,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 function Meteor({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const initialPosition = useRef(position);
-  
+
   useFrame((state) => {
     if (meshRef.current) {
       meshRef.current.rotation.x += 0.01;
@@ -28,11 +28,19 @@ function Meteor({ position, scale = 1 }: { position: [number, number, number]; s
   );
 }
 
-function LaptopModel({ gameModeRef, playerStateRef, modelOffsetRef }: { 
+function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRef }: {
   gameModeRef: React.MutableRefObject<string>,
   playerStateRef: React.MutableRefObject<{
     p1x: number, p1y: number, p2x: number, p2y: number, levelLength: number,
     p1rotation: number, p1yVelocity: number, p2rotation: number, p2yVelocity: number
+  }>,
+  colorStateRef: React.MutableRefObject<{
+    bgColor: [number, number, number],
+    lineColor: [number, number, number],
+    gColor: [number, number, number],
+    g2Color: [number, number, number],
+    mgColor: [number, number, number],
+    mg2Color: [number, number, number]
   }>,
   modelOffsetRef: React.MutableRefObject<{ x: number, y: number, z: number }>
 }) {
@@ -48,7 +56,7 @@ function LaptopModel({ gameModeRef, playerStateRef, modelOffsetRef }: {
   const mouseMoveThrottle = 16; // ~60fps
   const pendingMouseMove = useRef<{ x: number; y: number } | null>(null);
   const mouseRafId = useRef<number | null>(null);
-  
+
   const width = 440;
   const height = 240;
 
@@ -115,7 +123,7 @@ function LaptopModel({ gameModeRef, playerStateRef, modelOffsetRef }: {
           // Text message - could be base64 (legacy) or JSON state
           try {
             const parsedData = JSON.parse(event.data);
-            
+
             // Check if this is the new state format with type: "state"
             if (parsedData.type === "state" && parsedData.message) {
               const stateData = parsedData.message;
@@ -138,6 +146,25 @@ function LaptopModel({ gameModeRef, playerStateRef, modelOffsetRef }: {
               }
               if (stateData.levelLength !== undefined) {
                 playerStateRef.current.levelLength = stateData.levelLength || 1;
+              }
+              // Update color data
+              if (stateData.bgColor) {
+                colorStateRef.current.bgColor = stateData.bgColor;
+              }
+              if (stateData.lineColor) {
+                colorStateRef.current.lineColor = stateData.lineColor;
+              }
+              if (stateData.gColor) {
+                colorStateRef.current.gColor = stateData.gColor;
+              }
+              if (stateData.g2Color) {
+                colorStateRef.current.g2Color = stateData.g2Color;
+              }
+              if (stateData.mgColor) {
+                colorStateRef.current.mgColor = stateData.mgColor;
+              }
+              if (stateData.mg2Color) {
+                colorStateRef.current.mg2Color = stateData.mg2Color;
               }
             } else {
               // Legacy format or unknown JSON - ignore
@@ -174,6 +201,52 @@ function LaptopModel({ gameModeRef, playerStateRef, modelOffsetRef }: {
   useEffect(() => {
     if (!canvasTexture || !scene) return;
     scene.traverse((child: any) => {
+      if (child.isMesh && child.material?.name?.includes("Material_0")) {
+        if ([
+          "cube", "cube001", "cube002", "cube003"].includes(child.name)) {
+          if (child.material.type === "MeshStandardMaterial") {
+
+
+            // Add a point light at the mesh position
+            const glowLight = new THREE.PointLight(0xffff00, 3, 0.8); // color, intensity, distance
+            glowLight.position.copy(child.position);
+            child.add(glowLight); // attach to mesh so it moves with it
+          }
+        }
+
+        console.log(child.name);
+
+        if ([
+          "cube_outline001", "cube_outline002", "cube_outline003"].includes(child.name)) {
+          if (child.material.type === "MeshStandardMaterial") {
+
+
+            // Add a point light at the mesh position
+            const glowLight = new THREE.PointLight(0xffff00, 0.1, 10); // color, intensity, distance
+            glowLight.position.copy(child.position);
+            child.add(glowLight); // attach to mesh so it moves with it
+          }
+        }
+
+        if ([
+          "cube007"].includes(child.name)) {
+          if (child.material.type === "MeshStandardMaterial") {
+
+
+            // Add a point light at the mesh position
+            const glowLight = new THREE.PointLight(0xff0000, 0.2, 0.6); // color, intensity, distance
+            glowLight.position.copy(child.position);
+            glowLight.position.x += 0.2;
+            glowLight.position.y += 0.1;
+            glowLight.position.z += 0.4;
+            child.add(glowLight); // attach to mesh so it moves with it
+          }
+        }
+
+      }
+
+
+
       if (child.isMesh && child.material?.name?.includes("Material.008")) {
         if (child.material.type === "MeshStandardMaterial") {
           child.material.map = canvasTexture;
@@ -248,7 +321,7 @@ function LaptopModel({ gameModeRef, playerStateRef, modelOffsetRef }: {
     if (screenIntersect && screenIntersect.uv && mouseInScreen.current) {
       const x = Math.max(0, Math.min(1, screenIntersect.uv.x));
       const y = Math.max(0, Math.min(1, 1 - screenIntersect.uv.y));
-      
+
       pendingMouseMove.current = { x, y };
       if (mouseRafId.current === null) {
         mouseRafId.current = requestAnimationFrame(sendMouseMove);
@@ -269,10 +342,10 @@ function LaptopModel({ gameModeRef, playerStateRef, modelOffsetRef }: {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!mouseInScreen.current) return;
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({ 
-          type: "key_down", 
-          key: e.keyCode, 
-          code: e.code 
+        socketRef.current.send(JSON.stringify({
+          type: "key_down",
+          key: e.keyCode,
+          code: e.code
         }));
       }
     };
@@ -280,10 +353,10 @@ function LaptopModel({ gameModeRef, playerStateRef, modelOffsetRef }: {
     const handleKeyUp = (e: KeyboardEvent) => {
       if (!mouseInScreen.current) return;
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({ 
-          type: "key_up", 
-          key: e.keyCode, 
-          code: e.code 
+        socketRef.current.send(JSON.stringify({
+          type: "key_up",
+          key: e.keyCode,
+          code: e.code
         }));
       }
     };
@@ -301,31 +374,31 @@ function LaptopModel({ gameModeRef, playerStateRef, modelOffsetRef }: {
   useFrame((state) => {
     if (modelRef.current) {
       const time = state.clock.getElapsedTime();
-      
+
       // Get level progress from player position
       const levelProgress = playerStateRef.current.levelLength > 0
         ? Math.max(0, Math.min(1, playerStateRef.current.p1x / playerStateRef.current.levelLength))
         : 0;
-      
+
       // Position object based on game progression (not camera position)
       const targetX = THREE.MathUtils.lerp(objectKeyframes[0].position[0], objectKeyframes[1].position[0], levelProgress);
       const targetY = THREE.MathUtils.lerp(objectKeyframes[0].position[1], objectKeyframes[1].position[1], levelProgress);
       const targetZ = THREE.MathUtils.lerp(objectKeyframes[0].position[2], objectKeyframes[1].position[2], levelProgress);
-      
+
       // Add subtle floating motion
       const floatingY = Math.sin(time * 2) * 0.005;
-      
+
       // Apply model offset
       const offsetX = modelOffsetRef.current.x;
       const offsetY = modelOffsetRef.current.y;
       const offsetZ = modelOffsetRef.current.z;
-      
+
       modelRef.current.position.set(
-        targetX + offsetX, 
-        targetY + floatingY + offsetY, 
+        targetX + offsetX,
+        targetY + floatingY + offsetY,
         targetZ + offsetZ
       );
-      
+
       // Keep UFO facing forward (doesn't follow camera)
       // Optional: Add subtle rotation
       modelRef.current.rotation.y = Math.sin(time * 0.5) * 0.015; // Gentle sway
@@ -335,10 +408,10 @@ function LaptopModel({ gameModeRef, playerStateRef, modelOffsetRef }: {
 
   if (!scene) return null;
   return (
-    <primitive 
-      ref={modelRef} 
-      object={scene} 
-      scale={0.75} 
+    <primitive
+      ref={modelRef}
+      object={scene}
+      scale={0.75}
       position={[0, 2, 4]}
       onPointerDown={handleModelPointerDown}
       onPointerUp={handleModelPointerUp}
@@ -372,12 +445,12 @@ function AnimatedCamera({ playerStateRef, cameraControlRef }: {
     p1x: number, p1y: number, p2x: number, p2y: number, levelLength: number,
     p1rotation: number, p1yVelocity: number, p2rotation: number, p2yVelocity: number
   }>,
-  cameraControlRef: React.MutableRefObject<{ 
-    distance: number, 
+  cameraControlRef: React.MutableRefObject<{
+    distance: number,
     theta: number, // horizontal angle
     phi: number,   // vertical angle
-    panX: number, 
-    panY: number 
+    panX: number,
+    panY: number
   }>
 }) {
   useFrame((state) => {
@@ -385,42 +458,42 @@ function AnimatedCamera({ playerStateRef, cameraControlRef }: {
     const levelProgress = playerStateRef.current.levelLength > 0
       ? Math.max(0, Math.min(1, playerStateRef.current.p1x / playerStateRef.current.levelLength))
       : 0;
-    
+
     // Calculate where the UFO/object is (its absolute world position)
     const objectX = THREE.MathUtils.lerp(objectKeyframes[0].position[0], objectKeyframes[1].position[0], levelProgress);
     const objectY = THREE.MathUtils.lerp(objectKeyframes[0].position[1], objectKeyframes[1].position[1], levelProgress);
     const objectZ = THREE.MathUtils.lerp(objectKeyframes[0].position[2], objectKeyframes[1].position[2], levelProgress);
-    
+
     // Get camera controls
     const distance = cameraControlRef.current.distance;
     const theta = cameraControlRef.current.theta;
     const phi = cameraControlRef.current.phi;
     const panX = cameraControlRef.current.panX;
     const panY = cameraControlRef.current.panY;
-    
+
     // Convert spherical coordinates to cartesian (Blender-style orbit)
     const x = distance * Math.sin(phi) * Math.sin(theta);
     const y = distance * Math.cos(phi);
     const z = distance * Math.sin(phi) * Math.cos(theta);
-    
+
     // Camera position = UFO position + spherical offset + pan offset
     const targetX = objectX + x + panX;
     const targetY = objectY + y + panY;
     const targetZ = objectZ + z;
 
     const lerpFactor = 1;
-    
+
     // Smoothly lerp camera to target position
     state.camera.position.x = THREE.MathUtils.lerp(state.camera.position.x, targetX, lerpFactor);
     state.camera.position.y = THREE.MathUtils.lerp(state.camera.position.y, targetY, lerpFactor);
     state.camera.position.z = THREE.MathUtils.lerp(state.camera.position.z, targetZ, lerpFactor);
-    
+
     // Camera always looks at the UFO (with pan offset applied to lookAt target too)
     const controls = state.controls as any;
     if (controls && controls.target) {
       const lookAtTarget = new THREE.Vector3(
-        objectX + panX, 
-        objectY + panY, 
+        objectX + panX,
+        objectY + panY,
         objectZ
       );
       controls.target.lerp(lookAtTarget, lerpFactor);
@@ -431,26 +504,26 @@ function AnimatedCamera({ playerStateRef, cameraControlRef }: {
   return null;
 }
 
-function CameraControls({ 
+function CameraControls({
   cameraControl,
   modelOffset
-}: { 
-  cameraControl: { 
-    distance: number, 
-    theta: number, 
-    phi: number, 
-    panX: number, 
-    panY: number 
+}: {
+  cameraControl: {
+    distance: number,
+    theta: number,
+    phi: number,
+    panX: number,
+    panY: number
   },
   modelOffset: { x: number, y: number, z: number }
 }) {
   const thetaDegrees = (cameraControl.theta * 180 / Math.PI).toFixed(1);
   const phiDegrees = (cameraControl.phi * 180 / Math.PI).toFixed(1);
-  
+
   return (
     <div className="absolute top-4 right-4 bg-gray-900/80 backdrop-blur-sm p-4 rounded-lg shadow-lg border border-gray-700 z-10 max-w-xs">
       <div className="text-white text-sm font-medium mb-3">Camera Controls (Blender-Style)</div>
-      
+
       {/* Orbit Section */}
       <div className="mb-3 pb-3 border-b border-gray-600">
         <div className="text-xs font-semibold text-blue-300 mb-2">Orbit</div>
@@ -469,7 +542,7 @@ function CameraControls({
           </div>
         </div>
       </div>
-      
+
       {/* Pan Section */}
       <div className="mb-3 pb-3 border-b border-gray-600">
         <div className="text-xs font-semibold text-green-300 mb-2">Pan</div>
@@ -484,7 +557,7 @@ function CameraControls({
           </div>
         </div>
       </div>
-      
+
       {/* Model Offset Section */}
       <div className="mb-3 pb-3 border-b border-gray-600">
         <div className="text-xs font-semibold text-purple-300 mb-2">UFO Offset</div>
@@ -503,7 +576,7 @@ function CameraControls({
           </div>
         </div>
       </div>
-      
+
       <div className="text-xs text-gray-400 space-y-1">
         <div>🖱️ Right-click + drag: Orbit</div>
         <div>🖱️ Shift + Right-drag: Pan</div>
@@ -514,11 +587,19 @@ function CameraControls({
   );
 }
 
-function AnimationControls({ gameModeRef, playerStateRef }: { 
+function AnimationControls({ gameModeRef, playerStateRef, colorStateRef }: {
   gameModeRef: React.MutableRefObject<string>,
   playerStateRef: React.MutableRefObject<{
     p1x: number, p1y: number, p2x: number, p2y: number, levelLength: number,
     p1rotation: number, p1yVelocity: number, p2rotation: number, p2yVelocity: number
+  }>,
+  colorStateRef: React.MutableRefObject<{
+    bgColor: [number, number, number],
+    lineColor: [number, number, number],
+    gColor: [number, number, number],
+    g2Color: [number, number, number],
+    mgColor: [number, number, number],
+    mg2Color: [number, number, number]
   }>
 }) {
   const [gameMode, setGameMode] = useState("Idle");
@@ -526,7 +607,15 @@ function AnimationControls({ gameModeRef, playerStateRef }: {
     p1x: 0, p1y: 0, p2x: 0, p2y: 0, levelLength: 1,
     p1rotation: 0, p1yVelocity: 0, p2rotation: 0, p2yVelocity: 0
   });
-  
+  const [colorState, setColorState] = useState({
+    bgColor: [0, 0, 0] as [number, number, number],
+    lineColor: [0, 0, 0] as [number, number, number],
+    gColor: [0, 0, 0] as [number, number, number],
+    g2Color: [0, 0, 0] as [number, number, number],
+    mgColor: [0, 0, 0] as [number, number, number],
+    mg2Color: [0, 0, 0] as [number, number, number]
+  });
+
   // Poll the game mode and player positions from the refs
   useEffect(() => {
     const interval = setInterval(() => {
@@ -536,13 +625,18 @@ function AnimationControls({ gameModeRef, playerStateRef }: {
       // Update player positions
       const newState = playerStateRef.current;
       if (newState.p1x !== playerState.p1x || newState.p1y !== playerState.p1y ||
-          newState.p2x !== playerState.p2x || newState.p2y !== playerState.p2y ||
-          newState.levelLength !== playerState.levelLength) {
+        newState.p2x !== playerState.p2x || newState.p2y !== playerState.p2y ||
+        newState.levelLength !== playerState.levelLength) {
         setPlayerState({ ...newState });
+      }
+      // Update colors
+      const newColorState = colorStateRef.current;
+      if (JSON.stringify(newColorState) !== JSON.stringify(colorState)) {
+        setColorState({ ...newColorState });
       }
     }, 100); // Update UI every 100ms
     return () => clearInterval(interval);
-  }, [gameModeRef, playerStateRef, gameMode, playerState]);
+  }, [gameModeRef, playerStateRef, colorStateRef, gameMode, playerState, colorState]);
 
   // Calculate level progress from player position
   const getLevelProgress = () => {
@@ -559,7 +653,7 @@ function AnimationControls({ gameModeRef, playerStateRef }: {
 
   // Get color based on game mode
   const getModeColor = () => {
-    switch(gameMode) {
+    switch (gameMode) {
       case "Playing": return "text-green-400";
       case "Paused": return "text-yellow-400";
       case "Idle": return "text-gray-400";
@@ -570,7 +664,7 @@ function AnimationControls({ gameModeRef, playerStateRef }: {
   return (
     <div className="absolute top-16 left-4 z-10 space-y-2">
       <div className="bg-black/70 p-4 rounded-lg text-white max-w-sm w-72">
-        
+
         {/* Game Status Display */}
         <div className="mb-3 bg-black/50 p-2 rounded border border-gray-700">
           <div className="flex items-center justify-between">
@@ -580,44 +674,44 @@ function AnimationControls({ gameModeRef, playerStateRef }: {
             </span>
           </div>
         </div>
-        
+
         {/* Player Positions Display */}
-         <div className="mb-3 bg-black/50 p-2 rounded border border-gray-700 space-y-2">
-            <div className="text-xs font-semibold text-blue-300 mb-1">Player Positions</div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-blue-900/30 p-1.5 rounded">
-                <div className="text-blue-300 font-medium mb-0.5">Player 1</div>
-                <div className="text-gray-300">
-                  <span className="text-gray-400">X:</span> {playerState.p1x.toFixed(1)}
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-gray-400">Y:</span> {playerState.p1y.toFixed(1)}
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-gray-400">Rotation:</span> {playerState.p1rotation.toFixed(2)}
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-gray-400">Y-Velocity:</span> {playerState.p1yVelocity.toFixed(2)}
-                </div>
+        <div className="mb-3 bg-black/50 p-2 rounded border border-gray-700 space-y-2">
+          <div className="text-xs font-semibold text-blue-300 mb-1">Player Positions</div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="bg-blue-900/30 p-1.5 rounded">
+              <div className="text-blue-300 font-medium mb-0.5">Player 1</div>
+              <div className="text-gray-300">
+                <span className="text-gray-400">X:</span> {playerState.p1x.toFixed(1)}
               </div>
-              <div className="bg-green-900/30 p-1.5 rounded">
-                <div className="text-green-300 font-medium mb-0.5">Player 2</div>
-                <div className="text-gray-300">
-                  <span className="text-gray-400">X:</span> {playerState.p2x.toFixed(1)}
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-gray-400">Y:</span> {playerState.p2y.toFixed(1)}
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-gray-400">Rotation:</span> {playerState.p2rotation.toFixed(2)}
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-gray-400">Y-Velocity:</span> {playerState.p2yVelocity.toFixed(2)}
-                </div>
+              <div className="text-gray-300">
+                <span className="text-gray-400">Y:</span> {playerState.p1y.toFixed(1)}
+              </div>
+              <div className="text-gray-300">
+                <span className="text-gray-400">Rotation:</span> {playerState.p1rotation.toFixed(2)}
+              </div>
+              <div className="text-gray-300">
+                <span className="text-gray-400">Y-Velocity:</span> {playerState.p1yVelocity.toFixed(2)}
+              </div>
+            </div>
+            <div className="bg-green-900/30 p-1.5 rounded">
+              <div className="text-green-300 font-medium mb-0.5">Player 2</div>
+              <div className="text-gray-300">
+                <span className="text-gray-400">X:</span> {playerState.p2x.toFixed(1)}
+              </div>
+              <div className="text-gray-300">
+                <span className="text-gray-400">Y:</span> {playerState.p2y.toFixed(1)}
+              </div>
+              <div className="text-gray-300">
+                <span className="text-gray-400">Rotation:</span> {playerState.p2rotation.toFixed(2)}
+              </div>
+              <div className="text-gray-300">
+                <span className="text-gray-400">Y-Velocity:</span> {playerState.p2yVelocity.toFixed(2)}
               </div>
             </div>
           </div>
-        
+        </div>
+
         <div className="mb-3">
           <div className="flex justify-between text-xs mb-1">
             <span>Level Progress</span>
@@ -627,23 +721,100 @@ function AnimationControls({ gameModeRef, playerStateRef }: {
             <div className="bg-blue-500 h-2 rounded-full transition-all duration-300" style={{ width: `${levelProgress * 100}%` }} />
           </div>
         </div>
+
+        {/* Level Colors Display */}
+        <div className="mb-3 bg-black/50 p-2 rounded border border-gray-700">
+          <div className="text-xs font-semibold text-purple-300 mb-2">Level Colors</div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="flex flex-col items-center">
+              <div className="text-gray-400 mb-1">Background</div>
+              <div
+                className="w-12 h-12 rounded border border-gray-600"
+                style={{ backgroundColor: `rgb(${colorState.bgColor[0]}, ${colorState.bgColor[1]}, ${colorState.bgColor[2]})` }}
+              />
+              <div className="text-gray-500 mt-1 text-[10px]">
+                {colorState.bgColor[0]},{colorState.bgColor[1]},{colorState.bgColor[2]}
+              </div>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="text-gray-400 mb-1">Ground</div>
+              <div
+                className="w-12 h-12 rounded border border-gray-600"
+                style={{ backgroundColor: `rgb(${colorState.gColor[0]}, ${colorState.gColor[1]}, ${colorState.gColor[2]})` }}
+              />
+              <div className="text-gray-500 mt-1 text-[10px]">
+                {colorState.gColor[0]},{colorState.gColor[1]},{colorState.gColor[2]}
+              </div>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="text-gray-400 mb-1">Line</div>
+              <div
+                className="w-12 h-12 rounded border border-gray-600"
+                style={{ backgroundColor: `rgb(${colorState.lineColor[0]}, ${colorState.lineColor[1]}, ${colorState.lineColor[2]})` }}
+              />
+              <div className="text-gray-500 mt-1 text-[10px]">
+                {colorState.lineColor[0]},{colorState.lineColor[1]},{colorState.lineColor[2]}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs mt-2">
+            <div className="flex flex-col items-center">
+              <div className="text-gray-400 mb-1">Ground 2</div>
+              <div
+                className="w-12 h-12 rounded border border-gray-600"
+                style={{ backgroundColor: `rgb(${colorState.g2Color[0]}, ${colorState.g2Color[1]}, ${colorState.g2Color[2]})` }}
+              />
+              <div className="text-gray-500 mt-1 text-[10px]">
+                {colorState.g2Color[0]},{colorState.g2Color[1]},{colorState.g2Color[2]}
+              </div>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="text-gray-400 mb-1">MG</div>
+              <div
+                className="w-12 h-12 rounded border border-gray-600"
+                style={{ backgroundColor: `rgb(${colorState.mgColor[0]}, ${colorState.mgColor[1]}, ${colorState.mgColor[2]})` }}
+              />
+              <div className="text-gray-500 mt-1 text-[10px]">
+                {colorState.mgColor[0]},{colorState.mgColor[1]},{colorState.mgColor[2]}
+              </div>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="text-gray-400 mb-1">MG 2</div>
+              <div
+                className="w-12 h-12 rounded border border-gray-600"
+                style={{ backgroundColor: `rgb(${colorState.mg2Color[0]}, ${colorState.mg2Color[1]}, ${colorState.mg2Color[2]})` }}
+              />
+              <div className="text-gray-500 mt-1 text-[10px]">
+                {colorState.mg2Color[0]},{colorState.mg2Color[1]},{colorState.mg2Color[2]}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function Scene({ gameModeRef, playerStateRef, cameraControlRef, modelOffsetRef }: { 
+function Scene({ gameModeRef, playerStateRef, colorStateRef, cameraControlRef, modelOffsetRef }: {
   gameModeRef: React.MutableRefObject<string>,
   playerStateRef: React.MutableRefObject<{
     p1x: number, p1y: number, p2x: number, p2y: number, levelLength: number,
     p1rotation: number, p1yVelocity: number, p2rotation: number, p2yVelocity: number
   }>,
-  cameraControlRef: React.MutableRefObject<{ 
-    distance: number, 
-    theta: number, 
-    phi: number, 
-    panX: number, 
-    panY: number 
+  colorStateRef: React.MutableRefObject<{
+    bgColor: [number, number, number],
+    lineColor: [number, number, number],
+    gColor: [number, number, number],
+    g2Color: [number, number, number],
+    mgColor: [number, number, number],
+    mg2Color: [number, number, number]
+  }>,
+  cameraControlRef: React.MutableRefObject<{
+    distance: number,
+    theta: number,
+    phi: number,
+    panX: number,
+    panY: number
   }>,
   modelOffsetRef: React.MutableRefObject<{ x: number, y: number, z: number }>
 }) {
@@ -653,7 +824,7 @@ function Scene({ gameModeRef, playerStateRef, cameraControlRef, modelOffsetRef }
       <pointLight position={[10, 10, 10]} intensity={1} />
       <pointLight position={[-10, -10, -10]} intensity={0.5} color="#4169E1" />
       <Stars radius={300} depth={60} count={1000} factor={7} saturation={0} />
-      <LaptopModel gameModeRef={gameModeRef} playerStateRef={playerStateRef} modelOffsetRef={modelOffsetRef} />
+      <LaptopModel gameModeRef={gameModeRef} playerStateRef={playerStateRef} colorStateRef={colorStateRef} modelOffsetRef={modelOffsetRef} />
       <MeteorField />
       <AnimatedCamera playerStateRef={playerStateRef} cameraControlRef={cameraControlRef} />
       <Environment preset="night" />
@@ -667,28 +838,36 @@ export default function SpaceshipScene({ isUIVisible = true }: { isUIVisible?: b
     p1x: 0, p1y: 0, p2x: 0, p2y: 0, levelLength: 1,
     p1rotation: 0, p1yVelocity: 0, p2rotation: 0, p2yVelocity: 0
   });
-  
-  // Blender-style camera controls
-  const cameraControlRef = useRef({ 
-    distance: 15,      // Distance from target
-    theta: 0,          // Horizontal angle (rotation around Y axis)
-    phi: Math.PI / 3,  // Vertical angle (angle from Y axis), start at 60 degrees
-    panX: 0,           // Pan offset X
-    panY: 0            // Pan offset Y
+  const colorStateRef = useRef({
+    bgColor: [0, 0, 0] as [number, number, number],
+    lineColor: [0, 0, 0] as [number, number, number],
+    gColor: [0, 0, 0] as [number, number, number],
+    g2Color: [0, 0, 0] as [number, number, number],
+    mgColor: [0, 0, 0] as [number, number, number],
+    mg2Color: [0, 0, 0] as [number, number, number]
   });
-  
-  const [cameraControl, setCameraControl] = useState({ 
-    distance: 15, 
-    theta: 0, 
-    phi: Math.PI / 3, 
-    panX: 0, 
-    panY: 0 
+
+  // Blender-style camera controls - Default values from screenshot
+  const cameraControlRef = useRef({
+    distance: 0.09,      // Distance from target
+    theta: -1.1 * Math.PI / 180,  // Horizontal angle: -0.6 degrees
+    phi: 33.8 * Math.PI / 180,    // Vertical angle: 17.2 degrees
+    panX: -0.06,         // Pan offset X
+    panY: 0.63           // Pan offset Y
   });
-  
-  // Model offset controls
-  const modelOffsetRef = useRef({ x: 0, y: 0, z: 0 });
-  const [modelOffset, setModelOffset] = useState({ x: 0, y: 0, z: 0 });
-  
+
+  const [cameraControl, setCameraControl] = useState({
+    distance: 0.09,      // Distance from target
+    theta: -1.1 * Math.PI / 180,  // Horizontal angle: -0.6 degrees
+    phi: 33.8 * Math.PI / 180,    // Vertical angle: 17.2 degrees
+    panX: -0.06,         // Pan offset X
+    panY: 0.63           // Pan offset Y
+  });
+
+  // Model offset controls - Default values from screenshot
+  const modelOffsetRef = useRef({ x: 0.00, y: 0.00, z: 0.00 });
+  const [modelOffset, setModelOffset] = useState({ x: 0.00, y: 0.00, z: 0.00 });
+
   const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
   const isPanningRef = useRef(false);
@@ -708,10 +887,10 @@ export default function SpaceshipScene({ isUIVisible = true }: { isUIVisible?: b
       if (isDraggingRef.current) {
         const deltaX = e.clientX - lastMousePosRef.current.x;
         const deltaY = e.clientY - lastMousePosRef.current.y;
-        
+
         if (e.shiftKey || isPanningRef.current) {
           // Shift + Right-drag = Pan
-          const panSensitivity = 0.02;
+          const panSensitivity = 0.00005 + cameraControlRef.current.distance * 0.001;
           cameraControlRef.current.panX -= deltaX * panSensitivity;
           cameraControlRef.current.panY += deltaY * panSensitivity;
         } else {
@@ -719,11 +898,11 @@ export default function SpaceshipScene({ isUIVisible = true }: { isUIVisible?: b
           const orbitSensitivity = 0.01;
           cameraControlRef.current.theta -= deltaX * orbitSensitivity;
           cameraControlRef.current.phi -= deltaY * orbitSensitivity;
-          
+
           // Clamp phi to avoid gimbal lock
           cameraControlRef.current.phi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraControlRef.current.phi));
         }
-        
+
         setCameraControl({ ...cameraControlRef.current });
         lastMousePosRef.current = { x: e.clientX, y: e.clientY };
       }
@@ -743,16 +922,16 @@ export default function SpaceshipScene({ isUIVisible = true }: { isUIVisible?: b
     // Scroll = Zoom (adjust distance) OR Alt + X/Y/Z + Scroll = Model offset
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-      
+
       // Check for Alt + X/Y/Z to adjust model offset
       if (e.altKey) {
         const offsetSensitivity = 0.001;
         const delta = e.deltaY * offsetSensitivity;
-        
+
         // Check which key is pressed (X, Y, or Z)
         // We'll use a keydown listener to track this
         const pressedKeys = (window as any).pressedKeys || new Set();
-        
+
         if (pressedKeys.has('x') || pressedKeys.has('X')) {
           modelOffsetRef.current.x += delta;
           setModelOffset({ ...modelOffsetRef.current });
@@ -764,11 +943,11 @@ export default function SpaceshipScene({ isUIVisible = true }: { isUIVisible?: b
           setModelOffset({ ...modelOffsetRef.current });
         }
       } else {
-        // Normal zoom
-        const zoomSensitivity = 0.001;
+        // make zoomSensitivity smoother for distance closer to 0
+        const zoomSensitivity = 0.00005 + cameraControlRef.current.distance * 0.001;
         cameraControlRef.current.distance += e.deltaY * zoomSensitivity;
         // Clamp distance
-        cameraControlRef.current.distance = Math.max(0, Math.min(50, cameraControlRef.current.distance));
+        cameraControlRef.current.distance = Math.max(0.00001, Math.min(50, cameraControlRef.current.distance));
         setCameraControl({ ...cameraControlRef.current });
       }
     };
@@ -805,29 +984,30 @@ export default function SpaceshipScene({ isUIVisible = true }: { isUIVisible?: b
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
-  
+
   return (
     <div className="relative bg-black h-screen w-screen">
       <div className="fixed inset-0 w-full h-full">
         {isUIVisible && (
           <>
-            <AnimationControls gameModeRef={gameModeRef} playerStateRef={playerStateRef} />
+            <AnimationControls gameModeRef={gameModeRef} playerStateRef={playerStateRef} colorStateRef={colorStateRef} />
             <CameraControls cameraControl={cameraControl} modelOffset={modelOffset} />
           </>
         )}
         <Canvas shadows camera={{ position: [0, 2, 5], fov: 75 }}>
-          <Scene 
-            gameModeRef={gameModeRef} 
-            playerStateRef={playerStateRef} 
+          <Scene
+            gameModeRef={gameModeRef}
+            playerStateRef={playerStateRef}
+            colorStateRef={colorStateRef}
             cameraControlRef={cameraControlRef}
             modelOffsetRef={modelOffsetRef}
           />
-          <OrbitControls 
-            enableZoom={false} 
-            enablePan={false} 
-            enableRotate={false} 
-            rotateSpeed={0.5} 
-            enableDamping={true} 
+          <OrbitControls
+            enableZoom={false}
+            enablePan={false}
+            enableRotate={false}
+            rotateSpeed={0.5}
+            enableDamping={true}
             dampingFactor={0.05}
             makeDefault
           />

@@ -36,7 +36,5 @@ namespace spc {
             void stop();
             void capture_frame();
         };
-
-        extern Recorder recorder;
     }
 }
