@@ -12,6 +12,19 @@ namespace spc {
         std::shared_ptr<projector::Recorder> recorder = std::make_shared<projector::Recorder>();
         std::shared_ptr<socket::SocketServer> server = socket::SocketServer::create(6671u);
 
+        struct GameObject
+        {
+            float m_x = 0.0f;
+            float m_y = 0.0f;
+            float m_rotation = 0.0f;
+            float m_scaleX = 1.0f;
+            float m_scaleY = 1.0f;
+            float m_opacity = 1.0f;
+            bool m_visible = true;
+            int m_objectId = -1;
+            uintptr_t m_nativePtr = 0;
+        };
+
         struct ColorRGB {
             uint8_t m_r = 0;
             uint8_t m_g = 0;  
@@ -61,6 +74,8 @@ namespace spc {
         ColorRGB m_mg2Color = {0, 0, 0};
         uint32_t m_levelID = 0;
         float m_levelLength = 0.0f;
+
+        std::vector<GameObject> m_gameObjects;
 
     private:
         State() = default;
