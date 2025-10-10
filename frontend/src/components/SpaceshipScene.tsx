@@ -7,25 +7,85 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 // Remove the old Meteor component and replace with GameObject component
-function GameObject({ position, scale, rotation }: { 
-  position: [number, number, number]; 
-  scale: [number, number]; 
+function GameObject({ position, scale, rotation, objectId, nativePtr }: {
+  position: [number, number, number];
+  scale: [number, number];
   rotation: number;
+  objectId: number;
+  nativePtr: number;
 }) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  const [scene, setScene] = useState<THREE.Group | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
 
-  useFrame(() => {
-    if (meshRef.current) {
-      // Keep the object oriented in the same direction as the UFO (forward-facing)
-      meshRef.current.rotation.y = 0; // Face forward
+  // Simple hash function to generate consistent random values from nativePtr
+  const seededRandom = (seed: number, offset: number = 0) => {
+    const x = Math.sin(seed + offset) * 10000;
+    return x - Math.floor(x);
+  };
+
+  // Use nativePtr as seed to deterministically select a meteor model
+  const meteorIndex = (Math.abs(nativePtr) % 3) + 1;
+  
+  // Generate deterministic random values for this meteor
+  const rotationSpeedX = seededRandom(nativePtr, 1) * 0.02 - 0.01; // -0.01 to 0.01 (10x faster)
+  const rotationSpeedY = seededRandom(nativePtr, 2) * 0.03 - 0.015; // -0.015 to 0.015 (10x faster)
+  const rotationSpeedZ = seededRandom(nativePtr, 3) * 0.02 - 0.01; // -0.01 to 0.01 (10x faster)
+  const breatheSpeed = seededRandom(nativePtr, 4) * 2 + 1; // 1 to 3
+  const breatheAmount = seededRandom(nativePtr, 5) * 0.02 + 0.01; // 0.01 to 0.03 (position offset)
+
+  useEffect(() => {
+    const meteorPath = `/models/meteor${meteorIndex}.glb`;
+
+    const loader = new GLTFLoader();
+    loader.load(
+      meteorPath,
+      (gltf) => {
+        setScene(gltf.scene);
+      },
+      undefined,
+      (error) => {
+        console.error(`Failed to load ${meteorPath}:`, error);
+      }
+    );
+  }, [meteorIndex]); // Only depend on meteorIndex which is stable
+
+  useFrame((state) => {
+    if (groupRef.current) {
+      const time = state.clock.getElapsedTime();
+      
+      // Apply random rotation based on nativePtr seed
+      groupRef.current.rotation.x += rotationSpeedX;
+      groupRef.current.rotation.y += rotationSpeedY;
+      groupRef.current.rotation.z += rotationSpeedZ;
+      
+      // Breathing effect (position oscillation instead of scale)
+      const breathe = Math.sin(time * breatheSpeed) * breatheAmount;
+      const baseScale = 0.12;
+      groupRef.current.scale.set(
+        scale[0] * baseScale,
+        scale[1] * baseScale,
+        scale[0] * baseScale
+      );
+      
+      // Apply breathing to position (vertical oscillation)
+      groupRef.current.position.set(
+        position[0],
+        position[1] + breathe,
+        position[2]
+      );
     }
   });
 
+  if (!scene || !isVisible) return null;
+
   return (
-    <mesh ref={meshRef} position={position} rotation={[0, rotation * (Math.PI / 180), 0]}>
-      <sphereGeometry args={[0.3, 16, 16]} />
-      <meshStandardMaterial color="#4169E1" roughness={0.6} emissive="#1E3A8A" emissiveIntensity={0.3} />
-    </mesh>
+    <primitive
+      ref={groupRef}
+      object={scene}
+      position={position}
+      rotation={[0, rotation * (Math.PI / 180), 0]}
+    />
   );
 }
 
@@ -46,7 +106,7 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
   modelOffsetRef: React.MutableRefObject<{ x: number, y: number, z: number }>,
   gameObjectsRef: React.MutableRefObject<Array<{
     x: number, y: number, rotation: number, scaleX: number, scaleY: number,
-    opacity: number, visible: boolean, objectId: number
+    opacity: number, visible: boolean, objectId: number, nativePtr: number
   }>>
 }) {
   const modelRef = useRef<THREE.Group>(null);
@@ -171,7 +231,7 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
               if (stateData.mg2Color) {
                 colorStateRef.current.mg2Color = stateData.mg2Color;
               }
-              
+
               // Update game objects
               if (stateData.objects && Array.isArray(stateData.objects)) {
                 gameObjectsRef.current = stateData.objects.map((obj: any) => ({
@@ -182,7 +242,8 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
                   scaleY: obj.scaleY || 1,
                   opacity: obj.opacity || 1,
                   visible: obj.visible !== false,
-                  objectId: obj.objectId || -1
+                  objectId: obj.objectId || -1,
+                  nativePtr: obj.nativePtr
                 }));
               }
             } else {
@@ -278,6 +339,31 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
           child.userData.isScreen = true;
           screenMeshRef.current = child;
         }
+
+        // add light in front of the screen
+        const screenLight = new THREE.SpotLight(
+          0xffffff, // color
+          7, // intensity
+          15, // distance
+          Math.PI / -6, // angle
+          20, // penumbra
+          1 // decay
+        );
+        
+        // color, intensity, distance
+        screenLight.position.copy(child.position);
+        screenLight.position.z += 3;
+
+        // make screenlight face forward
+        screenLight.target.position.set(
+          screenLight.position.x,
+          screenLight.position.y,
+          screenLight.position.z - 1
+        );
+
+        screenLight.castShadow = false;
+        child.add(screenLight); // attach to mesh so it moves with it
+        child.add(screenLight.target);
       }
     });
   }, [canvasTexture, scene]);
@@ -412,9 +498,12 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
       const offsetY = modelOffsetRef.current.y;
       const offsetZ = modelOffsetRef.current.z;
 
+      // Add player 1 Y position influence (scale it down to match scene scale)
+      const player1YInfluence = playerStateRef.current.p1y / 100;
+
       modelRef.current.position.set(
         targetX + offsetX,
-        targetY + floatingY + offsetY,
+        targetY + floatingY + offsetY + player1YInfluence,
         targetZ + offsetZ
       );
 
@@ -441,13 +530,13 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
   );
 }
 
-function GameObjectsField({ 
+function GameObjectsField({
   gameObjectsRef,
-  playerStateRef 
+  playerStateRef
 }: {
   gameObjectsRef: React.MutableRefObject<Array<{
     x: number, y: number, rotation: number, scaleX: number, scaleY: number,
-    opacity: number, visible: boolean, objectId: number
+    opacity: number, visible: boolean, objectId: number, nativePtr: number
   }>>,
   playerStateRef: React.MutableRefObject<{
     p1x: number, p1y: number, p2x: number, p2y: number, levelLength: number,
@@ -456,7 +545,7 @@ function GameObjectsField({
 }) {
   const [objects, setObjects] = useState<Array<{
     x: number, y: number, rotation: number, scaleX: number, scaleY: number,
-    opacity: number, visible: boolean, objectId: number
+    opacity: number, visible: boolean, objectId: number, nativePtr: number
   }>>([]);
 
   // Update objects from ref
@@ -474,21 +563,21 @@ function GameObjectsField({
   const mapToSceneCoords = (gameX: number, gameY: number): [number, number, number] => {
     const levelLength = playerStateRef.current.levelLength || 1;
     const levelProgress = Math.max(0, Math.min(1, gameX / levelLength));
-    
+
     // Map the X position along the UFO's path (between start and end keyframes)
     const sceneZ = THREE.MathUtils.lerp(
-      objectKeyframes[0].position[2], 
-      objectKeyframes[1].position[2], 
+      objectKeyframes[0].position[2],
+      objectKeyframes[1].position[2],
       levelProgress
     );
-    
+
     // Map Y position (game vertical to scene vertical)
     // Scale down the game coordinates to fit the scene
     const sceneY = (gameY / 100); // Adjust this scale factor as needed
-    
+
     // Map to X (spread objects horizontally)
     const sceneX = 0; // Keep centered, or add variation if needed
-    
+
     return [sceneX, sceneY, sceneZ];
   };
 
@@ -502,6 +591,8 @@ function GameObjectsField({
             position={scenePos}
             scale={[obj.scaleX, obj.scaleY]}
             rotation={obj.rotation}
+            objectId={obj.objectId}
+            nativePtr={obj.nativePtr}
           />
         );
       })}
@@ -539,6 +630,9 @@ function AnimatedCamera({ playerStateRef, cameraControlRef }: {
     const objectY = THREE.MathUtils.lerp(objectKeyframes[0].position[1], objectKeyframes[1].position[1], levelProgress);
     const objectZ = THREE.MathUtils.lerp(objectKeyframes[0].position[2], objectKeyframes[1].position[2], levelProgress);
 
+    // Add player 1 Y position influence (this is the actual UFO position)
+    const player1YInfluence = playerStateRef.current.p1y / 100;
+
     // Get camera controls
     const distance = cameraControlRef.current.distance;
     const theta = cameraControlRef.current.theta;
@@ -551,9 +645,9 @@ function AnimatedCamera({ playerStateRef, cameraControlRef }: {
     const y = distance * Math.cos(phi);
     const z = distance * Math.sin(phi) * Math.cos(theta);
 
-    // Camera position = UFO position + spherical offset + pan offset
+    // Camera position = UFO position (including player Y influence) + spherical offset + pan offset
     const targetX = objectX + x + panX;
-    const targetY = objectY + y + panY;
+    const targetY = objectY + player1YInfluence + y + panY;
     const targetZ = objectZ + z;
 
     const lerpFactor = 1;
@@ -563,12 +657,12 @@ function AnimatedCamera({ playerStateRef, cameraControlRef }: {
     state.camera.position.y = THREE.MathUtils.lerp(state.camera.position.y, targetY, lerpFactor);
     state.camera.position.z = THREE.MathUtils.lerp(state.camera.position.z, targetZ, lerpFactor);
 
-    // Camera always looks at the UFO (with pan offset applied to lookAt target too)
+    // Camera always looks at the UFO (with pan offset and player Y influence applied to lookAt target too)
     const controls = state.controls as any;
     if (controls && controls.target) {
       const lookAtTarget = new THREE.Vector3(
         objectX + panX,
-        objectY + panY,
+        objectY + player1YInfluence + panY,
         objectZ
       );
       controls.target.lerp(lookAtTarget, lerpFactor);
@@ -894,7 +988,7 @@ function Scene({ gameModeRef, playerStateRef, colorStateRef, cameraControlRef, m
   modelOffsetRef: React.MutableRefObject<{ x: number, y: number, z: number }>,
   gameObjectsRef: React.MutableRefObject<Array<{
     x: number, y: number, rotation: number, scaleX: number, scaleY: number,
-    opacity: number, visible: boolean, objectId: number
+    opacity: number, visible: boolean, objectId: number, nativePtr: number
   }>>
 }) {
   return (
@@ -903,10 +997,10 @@ function Scene({ gameModeRef, playerStateRef, colorStateRef, cameraControlRef, m
       <pointLight position={[10, 10, 10]} intensity={1} />
       <pointLight position={[-10, -10, -10]} intensity={0.5} color="#4169E1" />
       <Stars radius={300} depth={60} count={1000} factor={7} saturation={0} />
-      <LaptopModel 
-        gameModeRef={gameModeRef} 
-        playerStateRef={playerStateRef} 
-        colorStateRef={colorStateRef} 
+      <LaptopModel
+        gameModeRef={gameModeRef}
+        playerStateRef={playerStateRef}
+        colorStateRef={colorStateRef}
         modelOffsetRef={modelOffsetRef}
         gameObjectsRef={gameObjectsRef}
       />
@@ -931,33 +1025,33 @@ export default function SpaceshipScene({ isUIVisible = true }: { isUIVisible?: b
     mgColor: [0, 0, 0] as [number, number, number],
     mg2Color: [0, 0, 0] as [number, number, number]
   });
-  
+
   // Add gameObjectsRef
   const gameObjectsRef = useRef<Array<{
     x: number, y: number, rotation: number, scaleX: number, scaleY: number,
-    opacity: number, visible: boolean, objectId: number
+    opacity: number, visible: boolean, objectId: number, nativePtr: number
   }>>([]);
 
   // Blender-style camera controls - Default values from screenshot
   const cameraControlRef = useRef({
-    distance: 0.09,      // Distance from target
-    theta: -1.1 * Math.PI / 180,  // Horizontal angle: -0.6 degrees
-    phi: 33.8 * Math.PI / 180,    // Vertical angle: 17.2 degrees
-    panX: -0.06,         // Pan offset X
-    panY: 0.63           // Pan offset Y
+    distance: 0.03,      // Distance from target
+    theta: 0.6 * Math.PI / 180,  // Horizontal angle: 0.6 degrees
+    phi: 45.8 * Math.PI / 180,    // Vertical angle: 45.8 degrees
+    panX: -0.02,         // Pan offset X
+    panY: 0.05           // Pan offset Y
   });
 
   const [cameraControl, setCameraControl] = useState({
-    distance: 0.09,      // Distance from target
-    theta: -1.1 * Math.PI / 180,  // Horizontal angle: -0.6 degrees
-    phi: 33.8 * Math.PI / 180,    // Vertical angle: 17.2 degrees
-    panX: -0.06,         // Pan offset X
-    panY: 0.63           // Pan offset Y
+    distance: 0.03,      // Distance from target
+    theta: 0.6 * Math.PI / 180,  // Horizontal angle: 0.6 degrees
+    phi: 45.8 * Math.PI / 180,    // Vertical angle: 45.8 degrees
+    panX: -0.02,         // Pan offset X
+    panY: 0.05           // Pan offset Y
   });
 
   // Model offset controls - Default values from screenshot
-  const modelOffsetRef = useRef({ x: 0.00, y: 0.00, z: 0.00 });
-  const [modelOffset, setModelOffset] = useState({ x: 0.00, y: 0.00, z: 0.00 });
+  const modelOffsetRef = useRef({ x: 0.00, y: -0.70, z: -0.10 });
+  const [modelOffset, setModelOffset] = useState({ x: 0.00, y: -0.70, z: -0.10 });
 
   const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });

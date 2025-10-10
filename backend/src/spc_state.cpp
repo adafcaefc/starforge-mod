@@ -20,7 +20,8 @@ namespace spc {
                 {"scaleY", obj.m_scaleY},
                 {"opacity", obj.m_opacity},
                 {"visible", obj.m_visible},
-                {"objectId", obj.m_objectId}
+                {"objectId", obj.m_objectId},
+                {"nativePtr", obj.m_nativePtr}
             };
             objectsArray.push_back(objJson);
         }
