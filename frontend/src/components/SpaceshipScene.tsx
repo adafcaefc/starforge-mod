@@ -6,29 +6,30 @@ import { OrbitControls, Environment, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-function Meteor({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) {
+// Remove the old Meteor component and replace with GameObject component
+function GameObject({ position, scale, rotation }: { 
+  position: [number, number, number]; 
+  scale: [number, number]; 
+  rotation: number;
+}) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const initialPosition = useRef(position);
 
-  useFrame((state) => {
+  useFrame(() => {
     if (meshRef.current) {
-      meshRef.current.rotation.x += 0.01;
-      meshRef.current.rotation.y += 0.01;
-      const time = state.clock.getElapsedTime();
-      meshRef.current.position.z = initialPosition.current[2] + Math.sin(time * 0.1) * 5;
-      meshRef.current.position.x = initialPosition.current[0] + Math.cos(time * 0.05) * 2;
+      // Keep the object oriented in the same direction as the UFO (forward-facing)
+      meshRef.current.rotation.y = 0; // Face forward
     }
   });
 
   return (
-    <mesh ref={meshRef} position={position} scale={scale}>
-      <sphereGeometry args={[0.3, 8, 8]} />
-      <meshStandardMaterial color="#8B4513" roughness={0.8} emissive="#2B1B0B" emissiveIntensity={0.1} />
+    <mesh ref={meshRef} position={position} rotation={[0, rotation * (Math.PI / 180), 0]}>
+      <sphereGeometry args={[0.3, 16, 16]} />
+      <meshStandardMaterial color="#4169E1" roughness={0.6} emissive="#1E3A8A" emissiveIntensity={0.3} />
     </mesh>
   );
 }
 
-function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRef }: {
+function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRef, gameObjectsRef }: {
   gameModeRef: React.MutableRefObject<string>,
   playerStateRef: React.MutableRefObject<{
     p1x: number, p1y: number, p2x: number, p2y: number, levelLength: number,
@@ -42,7 +43,11 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
     mgColor: [number, number, number],
     mg2Color: [number, number, number]
   }>,
-  modelOffsetRef: React.MutableRefObject<{ x: number, y: number, z: number }>
+  modelOffsetRef: React.MutableRefObject<{ x: number, y: number, z: number }>,
+  gameObjectsRef: React.MutableRefObject<Array<{
+    x: number, y: number, rotation: number, scaleX: number, scaleY: number,
+    opacity: number, visible: boolean, objectId: number
+  }>>
 }) {
   const modelRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<THREE.Group | null>(null);
@@ -165,6 +170,20 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
               }
               if (stateData.mg2Color) {
                 colorStateRef.current.mg2Color = stateData.mg2Color;
+              }
+              
+              // Update game objects
+              if (stateData.objects && Array.isArray(stateData.objects)) {
+                gameObjectsRef.current = stateData.objects.map((obj: any) => ({
+                  x: obj.x || 0,
+                  y: obj.y || 0,
+                  rotation: obj.rotation || 0,
+                  scaleX: obj.scaleX || 1,
+                  scaleY: obj.scaleY || 1,
+                  opacity: obj.opacity || 1,
+                  visible: obj.visible !== false,
+                  objectId: obj.objectId || -1
+                }));
               }
             } else {
               // Legacy format or unknown JSON - ignore
@@ -422,16 +441,72 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
   );
 }
 
-function MeteorField() {
-  const meteors = [];
-  for (let i = 0; i < 0; i++) {
-    const x = (Math.random() - 0.5) * 100;
-    const y = (Math.random() - 0.5) * 50;
-    const z = (Math.random() - 0.5) * 100;
-    const scale = Math.random() * 6 + 0.5;
-    meteors.push(<Meteor key={i} position={[x, y, z]} scale={scale} />);
-  }
-  return <>{meteors}</>;
+function GameObjectsField({ 
+  gameObjectsRef,
+  playerStateRef 
+}: {
+  gameObjectsRef: React.MutableRefObject<Array<{
+    x: number, y: number, rotation: number, scaleX: number, scaleY: number,
+    opacity: number, visible: boolean, objectId: number
+  }>>,
+  playerStateRef: React.MutableRefObject<{
+    p1x: number, p1y: number, p2x: number, p2y: number, levelLength: number,
+    p1rotation: number, p1yVelocity: number, p2rotation: number, p2yVelocity: number
+  }>
+}) {
+  const [objects, setObjects] = useState<Array<{
+    x: number, y: number, rotation: number, scaleX: number, scaleY: number,
+    opacity: number, visible: boolean, objectId: number
+  }>>([]);
+
+  // Update objects from ref
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newObjects = gameObjectsRef.current;
+      if (newObjects.length > 0) {
+        setObjects([...newObjects]);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [gameObjectsRef]);
+
+  // Map game world coordinates to 3D scene coordinates
+  const mapToSceneCoords = (gameX: number, gameY: number): [number, number, number] => {
+    const levelLength = playerStateRef.current.levelLength || 1;
+    const levelProgress = Math.max(0, Math.min(1, gameX / levelLength));
+    
+    // Map the X position along the UFO's path (between start and end keyframes)
+    const sceneZ = THREE.MathUtils.lerp(
+      objectKeyframes[0].position[2], 
+      objectKeyframes[1].position[2], 
+      levelProgress
+    );
+    
+    // Map Y position (game vertical to scene vertical)
+    // Scale down the game coordinates to fit the scene
+    const sceneY = (gameY / 100); // Adjust this scale factor as needed
+    
+    // Map to X (spread objects horizontally)
+    const sceneX = 0; // Keep centered, or add variation if needed
+    
+    return [sceneX, sceneY, sceneZ];
+  };
+
+  return (
+    <>
+      {objects.filter(obj => obj.visible).map((obj, index) => {
+        const scenePos = mapToSceneCoords(obj.x, obj.y);
+        return (
+          <GameObject
+            key={`${obj.objectId}-${index}`}
+            position={scenePos}
+            scale={[obj.scaleX, obj.scaleY]}
+            rotation={obj.rotation}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 // Object position keyframes (where the UFO is positioned in the scene)
@@ -795,7 +870,7 @@ function AnimationControls({ gameModeRef, playerStateRef, colorStateRef }: {
   );
 }
 
-function Scene({ gameModeRef, playerStateRef, colorStateRef, cameraControlRef, modelOffsetRef }: {
+function Scene({ gameModeRef, playerStateRef, colorStateRef, cameraControlRef, modelOffsetRef, gameObjectsRef }: {
   gameModeRef: React.MutableRefObject<string>,
   playerStateRef: React.MutableRefObject<{
     p1x: number, p1y: number, p2x: number, p2y: number, levelLength: number,
@@ -816,7 +891,11 @@ function Scene({ gameModeRef, playerStateRef, colorStateRef, cameraControlRef, m
     panX: number,
     panY: number
   }>,
-  modelOffsetRef: React.MutableRefObject<{ x: number, y: number, z: number }>
+  modelOffsetRef: React.MutableRefObject<{ x: number, y: number, z: number }>,
+  gameObjectsRef: React.MutableRefObject<Array<{
+    x: number, y: number, rotation: number, scaleX: number, scaleY: number,
+    opacity: number, visible: boolean, objectId: number
+  }>>
 }) {
   return (
     <>
@@ -824,8 +903,14 @@ function Scene({ gameModeRef, playerStateRef, colorStateRef, cameraControlRef, m
       <pointLight position={[10, 10, 10]} intensity={1} />
       <pointLight position={[-10, -10, -10]} intensity={0.5} color="#4169E1" />
       <Stars radius={300} depth={60} count={1000} factor={7} saturation={0} />
-      <LaptopModel gameModeRef={gameModeRef} playerStateRef={playerStateRef} colorStateRef={colorStateRef} modelOffsetRef={modelOffsetRef} />
-      <MeteorField />
+      <LaptopModel 
+        gameModeRef={gameModeRef} 
+        playerStateRef={playerStateRef} 
+        colorStateRef={colorStateRef} 
+        modelOffsetRef={modelOffsetRef}
+        gameObjectsRef={gameObjectsRef}
+      />
+      <GameObjectsField gameObjectsRef={gameObjectsRef} playerStateRef={playerStateRef} />
       <AnimatedCamera playerStateRef={playerStateRef} cameraControlRef={cameraControlRef} />
       <Environment preset="night" />
     </>
@@ -846,6 +931,12 @@ export default function SpaceshipScene({ isUIVisible = true }: { isUIVisible?: b
     mgColor: [0, 0, 0] as [number, number, number],
     mg2Color: [0, 0, 0] as [number, number, number]
   });
+  
+  // Add gameObjectsRef
+  const gameObjectsRef = useRef<Array<{
+    x: number, y: number, rotation: number, scaleX: number, scaleY: number,
+    opacity: number, visible: boolean, objectId: number
+  }>>([]);
 
   // Blender-style camera controls - Default values from screenshot
   const cameraControlRef = useRef({
@@ -1001,6 +1092,7 @@ export default function SpaceshipScene({ isUIVisible = true }: { isUIVisible?: b
             colorStateRef={colorStateRef}
             cameraControlRef={cameraControlRef}
             modelOffsetRef={modelOffsetRef}
+            gameObjectsRef={gameObjectsRef}
           />
           <OrbitControls
             enableZoom={false}

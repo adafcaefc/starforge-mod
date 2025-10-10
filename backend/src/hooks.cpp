@@ -24,6 +24,7 @@ namespace spc {
             obj.m_visible = objx->isVisible();
             obj.m_nativePtr = reinterpret_cast<uintptr_t>(objx);
             obj.m_objectId = objx->m_objectID;
+            state->m_gameObjects.push_back(obj);
         }
     }
 
@@ -69,6 +70,9 @@ namespace spc {
             if (auto p2 = pl->m_player2) {
                 spcProcessPlayer(p2, state->m_player2);
             }
+            
+            // Load game objects
+            loadObjects(pl);
 
             if (auto em = pl->m_effectManager)
             {
