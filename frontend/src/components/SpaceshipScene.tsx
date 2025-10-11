@@ -6,6 +6,7 @@ import { OrbitControls, Environment, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
+
 // Remove the old Meteor component and replace with GameObject component
 function GameObject({ position, scale, rotation, objectId, nativePtr }: {
   position: [number, number, number];
@@ -24,13 +25,21 @@ function GameObject({ position, scale, rotation, objectId, nativePtr }: {
     return x - Math.floor(x);
   };
 
+  function hash32(n: number) {
+    n = n | 0; // force to 32-bit int
+    n = ((n >>> 16) ^ n) * 0x45d9f3b;
+    n = ((n >>> 16) ^ n) * 0x45d9f3b;
+    n = (n >>> 16) ^ n;
+    return n >>> 0; // unsigned
+  }
+
   // Use nativePtr as seed to deterministically select a meteor model
-  const meteorIndex = (Math.abs(nativePtr) % 3) + 1;
-  
+  const meteorIndex = (hash32(nativePtr) % 3) + 1;
+
   // Generate deterministic random values for this meteor
-  const rotationSpeedX = seededRandom(nativePtr, 1) * 0.02 - 0.01; // -0.01 to 0.01 (10x faster)
-  const rotationSpeedY = seededRandom(nativePtr, 2) * 0.03 - 0.015; // -0.015 to 0.015 (10x faster)
-  const rotationSpeedZ = seededRandom(nativePtr, 3) * 0.02 - 0.01; // -0.01 to 0.01 (10x faster)
+  const rotationSpeedX = 30 * seededRandom(nativePtr, 1) * 0.02 - 0.01; // -0.01 to 0.01 (10x faster)
+  const rotationSpeedY = 30 * seededRandom(nativePtr, 2) * 0.03 - 0.015; // -0.015 to 0.015 (10x faster)
+  const rotationSpeedZ = 30 * seededRandom(nativePtr, 3) * 0.02 - 0.01; // -0.01 to 0.01 (10x faster)
   const breatheSpeed = seededRandom(nativePtr, 4) * 2 + 1; // 1 to 3
   const breatheAmount = seededRandom(nativePtr, 5) * 0.02 + 0.01; // 0.01 to 0.03 (position offset)
 
@@ -53,12 +62,13 @@ function GameObject({ position, scale, rotation, objectId, nativePtr }: {
   useFrame((state) => {
     if (groupRef.current) {
       const time = state.clock.getElapsedTime();
-      
-      // Apply random rotation based on nativePtr seed
-      groupRef.current.rotation.x += rotationSpeedX;
-      groupRef.current.rotation.y += rotationSpeedY;
-      groupRef.current.rotation.z += rotationSpeedZ;
-      
+
+      // Deterministic rotation based on elapsed time and seed
+      // This ensures rotation is always the same for the same time and seed
+      groupRef.current.rotation.x = time * rotationSpeedX;
+      groupRef.current.rotation.y = time * rotationSpeedY;
+      groupRef.current.rotation.z = time * rotationSpeedZ;
+
       // Breathing effect (position oscillation instead of scale)
       const breathe = Math.sin(time * breatheSpeed) * breatheAmount;
       const baseScale = 0.12;
@@ -67,7 +77,7 @@ function GameObject({ position, scale, rotation, objectId, nativePtr }: {
         scale[1] * baseScale,
         scale[0] * baseScale
       );
-      
+
       // Apply breathing to position (vertical oscillation)
       groupRef.current.position.set(
         position[0],
@@ -349,7 +359,7 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
           20, // penumbra
           1 // decay
         );
-        
+
         // color, intensity, distance
         screenLight.position.copy(child.position);
         screenLight.position.z += 3;
@@ -553,6 +563,8 @@ function GameObjectsField({
     const interval = setInterval(() => {
       const newObjects = gameObjectsRef.current;
       if (newObjects.length > 0) {
+
+        console.log(newObjects);
         setObjects([...newObjects]);
       }
     }, 100);
@@ -583,7 +595,7 @@ function GameObjectsField({
 
   return (
     <>
-      {objects.filter(obj => obj.visible).map((obj, index) => {
+      {objects.map((obj, index) => {
         const scenePos = mapToSceneCoords(obj.x, obj.y);
         return (
           <GameObject

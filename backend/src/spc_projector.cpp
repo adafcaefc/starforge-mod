@@ -21,9 +21,6 @@ namespace spc {
             // Send state as JSON text (small, fast to parse)
             auto state = State::get();
             server->send(state->toJSON());
-
-            // Clear game objects after sending
-            state->m_gameObjects.clear();
         }
 
         void Recorder::start() {

@@ -14,6 +14,7 @@ namespace spc {
         state->m_gameObjects.clear();
 
         for (auto objx : CCArrayExt<GameObject*>(pl->m_objects)) {
+            if (objx == pl->m_anticheatSpike) { continue; }
             spc::State::GameObject obj;
             obj.m_x = objx->getPositionX();
             obj.m_y = objx->getPositionY();
@@ -70,9 +71,6 @@ namespace spc {
             if (auto p2 = pl->m_player2) {
                 spcProcessPlayer(p2, state->m_player2);
             }
-            
-            // Load game objects
-            loadObjects(pl);
 
             if (auto em = pl->m_effectManager)
             {
