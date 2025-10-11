@@ -357,6 +357,7 @@ function UFOModel({
   splineRef,
   playerStateRef,
   lengthScaleFactorRef,
+  gameObjectsRef,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -365,6 +366,19 @@ function UFOModel({
     levelLength: number;
   }>;
   lengthScaleFactorRef: React.MutableRefObject<number>;
+  gameObjectsRef: React.MutableRefObject<
+    Array<{
+      x: number;
+      y: number;
+      rotation: number;
+      scaleX: number;
+      scaleY: number;
+      opacity: number;
+      visible: boolean;
+      objectId: number;
+      nativePtr: number;
+    }>
+  >;
 }) {
   const modelRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<THREE.Group | null>(null);
@@ -439,7 +453,26 @@ function UFOModel({
                 playerStateRef.current.p1y = stateData.player1.y || 0;
               }
               if (stateData.levelLength !== undefined) {
-                playerStateRef.current.levelLength = stateData.levelLength || 1;
+                playerStateRef.current.levelLength = stateData.levelLength || 3000;
+                // Update length scale factor when level length changes
+                const splineLength = splineRef.current.length(1000);
+                const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+                lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
+              }
+              
+              // Update game objects
+              if (stateData.objects && Array.isArray(stateData.objects)) {
+                gameObjectsRef.current = stateData.objects.map((obj: any) => ({
+                  x: obj.x || 0,
+                  y: obj.y || 0,
+                  rotation: obj.rotation || 0,
+                  scaleX: obj.scaleX || 1,
+                  scaleY: obj.scaleY || 1,
+                  opacity: obj.opacity || 1,
+                  visible: obj.visible !== false,
+                  objectId: obj.objectId || -1,
+                  nativePtr: obj.nativePtr
+                }));
               }
             }
           } catch (e) {
@@ -504,18 +537,24 @@ function UFOModel({
     if (modelRef.current && splineRef.current.segments.length > 0) {
       const time = state.clock.getElapsedTime();
       const spline = splineRef.current;
-      const lengthScaleFactor = lengthScaleFactorRef.current;
 
       // Calculate position along spline based on player position
       const playerX = playerStateRef.current.p1x;
       const playerY = playerStateRef.current.p1y;
+      const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
 
-      // Scale player position to spline length
-      const scaledLength = playerX * lengthScaleFactor;
+      // Update length scale factor to ensure spline is proportional to level length
       const splineLength = spline.length(100);
+      lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
+
+      // Calculate progress (0 to 1) - player reaches 100% at level length
+      const progress = Math.min(1, Math.max(0, playerX / effectiveLevelLength));
+      
+      // Map progress to spline length
+      const targetLength = progress * splineLength;
 
       // Find parameter t based on length
-      const paramData = spline.findClosestByLength(scaledLength);
+      const paramData = spline.findClosestByLength(targetLength);
       const position = spline.get(paramData.t);
       const tangent = spline.tangent(paramData.t);
       const normal = spline.normal(paramData.t);
@@ -731,6 +770,7 @@ function GameObjectsField({
   gameObjectsRef,
   splineRef,
   lengthScaleFactorRef,
+  playerStateRef,
 }: {
   gameObjectsRef: React.MutableRefObject<
     Array<{
@@ -747,6 +787,11 @@ function GameObjectsField({
   >;
   splineRef: React.MutableRefObject<Spline>;
   lengthScaleFactorRef: React.MutableRefObject<number>;
+  playerStateRef: React.MutableRefObject<{
+    p1x: number;
+    p1y: number;
+    levelLength: number;
+  }>;
 }) {
   const [objects, setObjects] = useState<
     Array<{
@@ -779,11 +824,17 @@ function GameObjectsField({
     const spline = splineRef.current;
     if (spline.segments.length === 0) return [0, 0, 0];
 
-    const lengthScaleFactor = lengthScaleFactorRef.current;
-    const scaledLength = gameX * lengthScaleFactor;
+    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+    
+    // Calculate progress (0 to 1) - same as UFO movement
+    const progress = Math.min(1, Math.max(0, gameX / effectiveLevelLength));
+    
+    // Map progress to spline length
+    const splineLength = spline.length(100);
+    const targetLength = progress * splineLength;
 
     // Find position on spline
-    const paramData = spline.findClosestByLength(scaledLength);
+    const paramData = spline.findClosestByLength(targetLength);
     const position = spline.get(paramData.t);
 
     // Add Y offset (scaled to match scene)
@@ -795,7 +846,6 @@ function GameObjectsField({
   return (
     <>
       {objects.map((obj, index) => {
-        if (!obj.visible) return null;
         const scenePos = mapToSplineCoords(obj.x, obj.y);
         return (
           <GameObject
@@ -885,10 +935,14 @@ function AnimatedCamera({
 function SplineEditorControls({
   onAddSegment,
   onRemoveSegment,
+  onSaveSpline,
+  onLoadSpline,
   splineRef,
 }: {
   onAddSegment: () => void;
   onRemoveSegment: () => void;
+  onSaveSpline: () => void;
+  onLoadSpline: () => void;
   splineRef: React.MutableRefObject<Spline>;
 }) {
   const [segmentCount, setSegmentCount] = useState(0);
@@ -906,20 +960,36 @@ function SplineEditorControls({
       <div className="text-xs text-gray-300 mb-3">
         Segments: <span className="font-mono">{segmentCount}</span>
       </div>
-      <div className="flex gap-2">
-        <button
-          onClick={onAddSegment}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium text-sm transition-colors"
-        >
-          + Add Segment
-        </button>
-        <button
-          onClick={onRemoveSegment}
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium text-sm transition-colors"
-          disabled={segmentCount <= 1}
-        >
-          - Remove Segment
-        </button>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <button
+            onClick={onAddSegment}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium text-sm transition-colors"
+          >
+            + Add Segment
+          </button>
+          <button
+            onClick={onRemoveSegment}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium text-sm transition-colors"
+            disabled={segmentCount <= 1}
+          >
+            - Remove Segment
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onSaveSpline}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-sm transition-colors"
+          >
+            💾 Save Spline
+          </button>
+          <button
+            onClick={onLoadSpline}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-medium text-sm transition-colors"
+          >
+            📂 Load Spline
+          </button>
+        </div>
       </div>
       <div className="mt-3 text-xs text-gray-400 space-y-1">
         <div>🖱️ Right-click + drag: Orbit</div>
@@ -999,11 +1069,13 @@ function Scene({
         splineRef={splineRef}
         playerStateRef={playerStateRef}
         lengthScaleFactorRef={lengthScaleFactorRef}
+        gameObjectsRef={gameObjectsRef}
       />
       <GameObjectsField
         gameObjectsRef={gameObjectsRef}
         splineRef={splineRef}
         lengthScaleFactorRef={lengthScaleFactorRef}
+        playerStateRef={playerStateRef}
       />
       <AnimatedCamera
         splineRef={splineRef}
@@ -1021,7 +1093,7 @@ export default function SplineScene({ isUIVisible = true }: { isUIVisible?: bool
   const playerStateRef = useRef({
     p1x: 0,
     p1y: 0,
-    levelLength: 1,
+    levelLength: 3000,
   });
   const lengthScaleFactorRef = useRef(1);
   const gameObjectsRef = useRef<
@@ -1058,7 +1130,7 @@ export default function SplineScene({ isUIVisible = true }: { isUIVisible?: bool
   // Initialize default spline
   useEffect(() => {
     const spline = splineRef.current;
-    // Create initial spline with 3 segments
+    // Create initial spline with 2 segments
     spline.addSegment(
       new CubicBezierCurve(
         new THREE.Vector3(0, 0, 0),
@@ -1075,19 +1147,11 @@ export default function SplineScene({ isUIVisible = true }: { isUIVisible?: bool
         new THREE.Vector3(12, 0, -30)
       )
     );
-    spline.addSegment(
-      new CubicBezierCurve(
-        new THREE.Vector3(12, 0, -30),
-        new THREE.Vector3(14, 2, -35),
-        new THREE.Vector3(16, -2, -40),
-        new THREE.Vector3(18, 0, -45)
-      )
-    );
     spline.updateParameterList(10000);
 
-    // Calculate length scale factor (assuming level length of 10000 for now)
+    // Calculate length scale factor with default level length of 3000
     const splineLength = spline.length(1000);
-    lengthScaleFactorRef.current = splineLength / 10000;
+    lengthScaleFactorRef.current = splineLength / 3000;
   }, []);
 
   const handleAddSegment = () => {
@@ -1096,7 +1160,8 @@ export default function SplineScene({ isUIVisible = true }: { isUIVisible?: bool
     
     // Recalculate length scale factor
     const splineLength = splineRef.current.length(1000);
-    lengthScaleFactorRef.current = splineLength / (playerStateRef.current.levelLength || 10000);
+    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+    lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
   };
 
   const handleRemoveSegment = () => {
@@ -1105,7 +1170,82 @@ export default function SplineScene({ isUIVisible = true }: { isUIVisible?: bool
     
     // Recalculate length scale factor
     const splineLength = splineRef.current.length(1000);
-    lengthScaleFactorRef.current = splineLength / (playerStateRef.current.levelLength || 10000);
+    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+    lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
+  };
+
+  const handleSaveSpline = () => {
+    const spline = splineRef.current;
+    const splineData = {
+      segments: spline.segments.map(segment => ({
+        p1: { x: segment.p1.x, y: segment.p1.y, z: segment.p1.z },
+        m1: { x: segment.m1.x, y: segment.m1.y, z: segment.m1.z },
+        m2: { x: segment.m2.x, y: segment.m2.y, z: segment.m2.z },
+        p2: { x: segment.p2.x, y: segment.p2.y, z: segment.p2.z },
+        p1NormalAngle: segment.p1NormalAngle,
+        p2NormalAngle: segment.p2NormalAngle,
+      })),
+    };
+    
+    const json = JSON.stringify(splineData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'spline.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleLoadSpline = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const json = event.target?.result as string;
+          const splineData = JSON.parse(json);
+          
+          // Clear current spline
+          const spline = splineRef.current;
+          spline.segments = [];
+          
+          // Load segments from JSON
+          for (const segmentData of splineData.segments) {
+            const segment = new CubicBezierCurve(
+              new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
+              new THREE.Vector3(segmentData.m1.x, segmentData.m1.y, segmentData.m1.z),
+              new THREE.Vector3(segmentData.m2.x, segmentData.m2.y, segmentData.m2.z),
+              new THREE.Vector3(segmentData.p2.x, segmentData.p2.y, segmentData.p2.z)
+            );
+            segment.p1NormalAngle = segmentData.p1NormalAngle || 0;
+            segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
+            spline.addSegment(segment);
+          }
+          
+          spline.updateParameterList(10000);
+          
+          // Recalculate length scale factor
+          const splineLength = spline.length(1000);
+          const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+          lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
+          
+          console.log('Spline loaded successfully');
+        } catch (error) {
+          console.error('Failed to load spline:', error);
+          alert('Failed to load spline file. Please check the file format.');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   // Camera controls (same as SpaceshipScene)
@@ -1210,6 +1350,8 @@ export default function SplineScene({ isUIVisible = true }: { isUIVisible?: bool
           <SplineEditorControls
             onAddSegment={handleAddSegment}
             onRemoveSegment={handleRemoveSegment}
+            onSaveSpline={handleSaveSpline}
+            onLoadSpline={handleLoadSpline}
             splineRef={splineRef}
           />
         )}
