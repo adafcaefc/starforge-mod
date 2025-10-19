@@ -937,12 +937,16 @@ function SplineEditorControls({
   onRemoveSegment,
   onSaveSpline,
   onLoadSpline,
+  onLoadFromLevel,
+  onSaveToLevel,
   splineRef,
 }: {
   onAddSegment: () => void;
   onRemoveSegment: () => void;
   onSaveSpline: () => void;
   onLoadSpline: () => void;
+  onLoadFromLevel: () => void;
+  onSaveToLevel: () => void;
   splineRef: React.MutableRefObject<Spline>;
 }) {
   const [segmentCount, setSegmentCount] = useState(0);
@@ -989,6 +993,23 @@ function SplineEditorControls({
           >
             📂 Load Spline
           </button>
+        </div>
+        <div className="border-t border-gray-600 pt-2 mt-1">
+          <div className="text-xs text-gray-400 mb-2">Level Sync</div>
+          <div className="flex gap-2">
+            <button
+              onClick={onLoadFromLevel}
+              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded font-medium text-sm transition-colors flex-1"
+            >
+              ⬇️ Load from Level
+            </button>
+            <button
+              onClick={onSaveToLevel}
+              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded font-medium text-sm transition-colors flex-1"
+            >
+              ⬆️ Save to Level
+            </button>
+          </div>
         </div>
       </div>
       <div className="mt-3 text-xs text-gray-400 space-y-1">
@@ -1088,7 +1109,9 @@ function Scene({
   );
 }
 
-export default function SplineScene({ isUIVisible = true }: { isUIVisible?: boolean }) {
+
+export default function SplineScene() {
+  const [showUI, setShowUI] = useState(true);
   const splineRef = useRef<Spline>(new Spline());
   const playerStateRef = useRef({
     p1x: 0,
@@ -1248,6 +1271,92 @@ export default function SplineScene({ isUIVisible = true }: { isUIVisible?: bool
     input.click();
   };
 
+  const handleLoadFromLevel = async () => {
+    try {
+      const response = await fetch('http://localhost:6673/api/leveldata/get', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to load level data');
+      }
+
+      const levelData = await response.json();
+      
+      // Clear current spline
+      const spline = splineRef.current;
+      spline.segments = [];
+      
+      // Load segments from level data
+      for (const segmentData of levelData.spline.segments) {
+        const segment = new CubicBezierCurve(
+          new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
+          new THREE.Vector3(segmentData.m1.x, segmentData.m1.y, segmentData.m1.z),
+          new THREE.Vector3(segmentData.m2.x, segmentData.m2.y, segmentData.m2.z),
+          new THREE.Vector3(segmentData.p2.x, segmentData.p2.y, segmentData.p2.z)
+        );
+        segment.p1NormalAngle = segmentData.p1NormalAngle || 0;
+        segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
+        spline.addSegment(segment);
+      }
+      
+      spline.updateParameterList(10000);
+      
+      // Recalculate length scale factor
+      const splineLength = spline.length(1000);
+      const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+      lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
+      
+      alert('✅ Spline loaded from level successfully!');
+      console.log('Spline loaded from level:', levelData);
+    } catch (error) {
+      console.error('Failed to load from level:', error);
+      alert(`❌ Failed to load from level: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleSaveToLevel = async () => {
+    try {
+      const spline = splineRef.current;
+      const levelData = {
+        spline: {
+          segments: spline.segments.map(segment => ({
+            p1: { x: segment.p1.x, y: segment.p1.y, z: segment.p1.z },
+            m1: { x: segment.m1.x, y: segment.m1.y, z: segment.m1.z },
+            m2: { x: segment.m2.x, y: segment.m2.y, z: segment.m2.z },
+            p2: { x: segment.p2.x, y: segment.p2.y, z: segment.p2.z },
+            p1NormalAngle: segment.p1NormalAngle,
+            p2NormalAngle: segment.p2NormalAngle,
+          })),
+        },
+      };
+
+      const response = await fetch('http://localhost:6673/api/leveldata/load', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(levelData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save level data');
+      }
+
+      const result = await response.json();
+      alert('✅ Spline saved to level successfully!');
+      console.log('Spline saved to level:', result);
+    } catch (error) {
+      console.error('Failed to save to level:', error);
+      alert(`❌ Failed to save to level: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   // Camera controls (same as SpaceshipScene)
   const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
@@ -1345,13 +1454,21 @@ export default function SplineScene({ isUIVisible = true }: { isUIVisible?: bool
 
   return (
     <div className="relative bg-black h-screen w-screen">
+      <button
+        className="fixed top-4 right-4 z-20 px-4 py-2 rounded bg-gray-800 text-white shadow hover:bg-gray-700 transition-colors"
+        onClick={() => setShowUI((v) => !v)}
+      >
+        {showUI ? "Hide UI" : "Show UI"}
+      </button>
       <div className="fixed inset-0 w-full h-full">
-        {isUIVisible && (
+        {showUI && (
           <SplineEditorControls
             onAddSegment={handleAddSegment}
             onRemoveSegment={handleRemoveSegment}
             onSaveSpline={handleSaveSpline}
             onLoadSpline={handleLoadSpline}
+            onLoadFromLevel={handleLoadFromLevel}
+            onSaveToLevel={handleSaveToLevel}
             splineRef={splineRef}
           />
         )}

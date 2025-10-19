@@ -3,6 +3,8 @@
 #include <filesystem>
 #include <fstream>
 
+#include "spc_level_data.h"
+
 using namespace geode::prelude;
 
 namespace spc {
@@ -24,12 +26,93 @@ namespace spc {
                     "PATCH"_method,
                     "OPTIONS"_method
                 );
+               
+            CROW_ROUTE(app, "/api/leveldata/get").methods("GET"_method) (
+                [](crow::request const& req, crow::response& res) {
+                    res.add_header("Content-Type", "application/json");
+                    GJBaseGameLayer* level = PlayLayer::get();
+                    if (!level)
+                     level = LevelEditorLayer::get();
+                    if (!level) {
+                        res.code = 404;
+                        res.end(R"({"error": "No level loaded"})");
+                        return;
+                    }
+                    if (!ldata::hasLevelData(level)) {
+                        res.code = 404;
+                        res.end(R"({"error": "No level data found"})");
+                        return;
+                    }
+                    auto data = ldata::getLevelData(level);
+                    nlohmann::json jsonData = data;
+                    res.code = 200;
+                    res.end(jsonData.dump());
+                }
+            );
 
-            // Serve static files (like serve .)
-            CROW_ROUTE(app, "/<path>")
-                .methods("GET"_method)([](crow::request const& req,
-                                          crow::response& res,
-                                          std::string filePath) {
+            
+            CROW_ROUTE(app, "/api/leveldata/load").methods("POST"_method) (
+                [](crow::request const& req, crow::response& res) {
+                    res.add_header("Content-Type", "application/json");
+                    GJBaseGameLayer* level = PlayLayer::get();
+                    if (!level)
+                        level = LevelEditorLayer::get();
+                    if (!level) {
+                        res.code = 404;
+                        res.end(R"({"error": "No level loaded"})");
+                        return;
+                    }
+                    try {
+                        auto jsonData = nlohmann::json::parse(req.body);
+                        auto data = jsonData.get<ldata::LevelData>();
+                        ldata::setLevelData(level, data);
+                        res.code = 200;
+                        res.end(R"({"status": "Level data loaded successfully"})");
+                    }
+                    catch (const std::exception& e) {
+                        res.code = 400;
+                        res.end(fmt::format(R"({{"error": "Failed to parse level data: {}"}})", e.what()));
+                    }
+                }
+            );
+
+            // Serve static files under /files prefix
+            CROW_ROUTE(app, "/files").methods("GET"_method)
+            ([](crow::request const& req, crow::response& res) {
+                try {
+                    namespace fs = std::filesystem;
+                    fs::path base = geode::Mod::get()->getResourcesDir();
+                    fs::path indexPath = base / "index.html";
+                    
+                    if (!fs::exists(indexPath)) {
+                        res.code = 404;
+                        res.end("index.html not found");
+                        return;
+                    }
+                    
+                    std::ifstream f(indexPath, std::ios::binary);
+                    if (!f) {
+                        res.code = 500;
+                        res.end("Error reading file");
+                        return;
+                    }
+                    
+                    std::string body((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+                    res.code = 200;
+                    res.add_header("Content-Type", "text/html");
+                    res.write(body);
+                    res.end();
+                } catch (const std::exception& e) {
+                    res.code = 500;
+                    res.end(fmt::format("Error: {}", e.what()));
+                }
+            });
+
+            CROW_ROUTE(app, "/files/<path>").methods("GET"_method)
+            ([](crow::request const& req,
+                crow::response& res,
+                std::string filePath) {
+                try {
                     if (!filePath.empty() && filePath.front() == '/') filePath.erase(0, 1);
 
                     namespace fs = std::filesystem;
@@ -73,28 +156,27 @@ namespace spc {
                         (std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>()
                     );
 
-                    // Set content type automatically
-                    res.set_static_file_info(fullPath.string());
+                    // Determine content type from extension
+                    std::string ext = fullPath.extension().string();
+                    std::string contentType = "application/octet-stream";
+                    if (ext == ".html" || ext == ".htm") contentType = "text/html";
+                    else if (ext == ".css") contentType = "text/css";
+                    else if (ext == ".js") contentType = "application/javascript";
+                    else if (ext == ".json") contentType = "application/json";
+                    else if (ext == ".png") contentType = "image/png";
+                    else if (ext == ".jpg" || ext == ".jpeg") contentType = "image/jpeg";
+                    else if (ext == ".svg") contentType = "image/svg+xml";
+                    else if (ext == ".gif") contentType = "image/gif";
+                    else if (ext == ".txt") contentType = "text/plain";
+
                     res.code = 200;
+                    res.add_header("Content-Type", contentType);
                     res.write(body);
                     res.end();
-                });
-
-            // Root path -> serve index.html
-            CROW_ROUTE(app, "/")
-            ([](crow::request const& req, crow::response& res) {
-                auto indexPath = geode::Mod::get()->getResourcesDir() / "index.html";
-                std::ifstream f(indexPath, std::ios::binary);
-                if (!f) {
-                    res.code = 404;
-                    res.end("index.html not found");
-                    return;
+                } catch (const std::exception& e) {
+                    res.code = 500;
+                    res.end(fmt::format("Error: {}", e.what()));
                 }
-                std::string body((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-                res.set_static_file_info(indexPath.string());
-                res.code = 200;
-                res.write(body);
-                res.end();
             });
 
             app.port(6673).multithreaded().run();
