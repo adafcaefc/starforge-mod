@@ -1,5 +1,8 @@
 #include "spc_level_data.h"
 
+#define SPC_LDATA_TOKEN_START "283036382.0"
+#define SPC_LDATA_TOKEN_END   "283036382.1"
+
 namespace spc::ldata
 {
     static std::vector<std::string> splitString(const std::string &str, char delimiter)
@@ -31,13 +34,13 @@ namespace spc::ldata
     std::string encodeGuidelines(const std::string &data, const std::string &guidelines)
     {
         std::vector<std::string> tokens = splitString(guidelines, '~');
-        auto startIt = std::find(tokens.begin(), tokens.end(), "283036382.0");
-        auto endIt = std::find(tokens.begin(), tokens.end(), "283036382.1");
+        auto startIt = std::find(tokens.begin(), tokens.end(), SPC_LDATA_TOKEN_START);
+        auto endIt = std::find(tokens.begin(), tokens.end(), SPC_LDATA_TOKEN_END);
         if (startIt != tokens.end() && endIt != tokens.end() && startIt < endIt)
         {
             tokens.erase(startIt, endIt + 1);
         }
-        tokens.push_back("283036382.0");
+        tokens.push_back(SPC_LDATA_TOKEN_START);
         for (char ch : data)
         {
             float timestamp = static_cast<float>(ch);
@@ -45,7 +48,7 @@ namespace spc::ldata
             tokens.push_back(std::to_string(timestamp));
             tokens.push_back(std::to_string(colorValue));
         }
-        tokens.push_back("283036382.1");
+        tokens.push_back(SPC_LDATA_TOKEN_END);
         return joinStrings(tokens, '~');
     }
 
@@ -53,8 +56,8 @@ namespace spc::ldata
     {
         std::string decodedData;
         std::vector<std::string> tokens = splitString(encodedGuidelines, '~');
-        auto startIt = std::find(tokens.begin(), tokens.end(), "283036382.0");
-        auto endIt = std::find(tokens.begin(), tokens.end(), "283036382.1");
+        auto startIt = std::find(tokens.begin(), tokens.end(), SPC_LDATA_TOKEN_START);
+        auto endIt = std::find(tokens.begin(), tokens.end(), SPC_LDATA_TOKEN_END);
 
         if (startIt == tokens.end() || endIt == tokens.end() || startIt >= endIt)
         {
@@ -83,8 +86,8 @@ namespace spc::ldata
     bool hasLevelData(GJBaseGameLayer *layer)
     {
         std::vector<std::string> tokens = splitString(layer->m_levelSettings->m_guidelineString, '~');
-        auto startIt = std::find(tokens.begin(), tokens.end(), "283036382.0");
-        auto endIt = std::find(tokens.begin(), tokens.end(), "283036382.1");
+        auto startIt = std::find(tokens.begin(), tokens.end(), SPC_LDATA_TOKEN_START);
+        auto endIt = std::find(tokens.begin(), tokens.end(), SPC_LDATA_TOKEN_END);
         return (startIt != tokens.end() && endIt != tokens.end() && startIt < endIt);
     }
 
