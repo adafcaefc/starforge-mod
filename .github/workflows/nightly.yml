@@ -15,11 +15,6 @@ jobs:
       # Checkout the code
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - uses: geode-sdk/build-geode-mod@main
-        id: build
-        with:
-          path: backend 
         
       - name: Build Frontend
         run: |
@@ -27,6 +22,11 @@ jobs:
           npm install
           npm run build
           xcopy "out" "..\\backend\\bin\\resources\\adaf.starforge" /E /H /C /I /Y
+
+      - uses: geode-sdk/build-geode-mod@main
+        id: build
+        with:
+          path: backend 
 
       - name: Compress Build Output
         run: |
