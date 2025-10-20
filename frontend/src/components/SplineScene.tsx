@@ -446,33 +446,55 @@ function UFOModel({
         } else if (typeof event.data === "string") {
           try {
             const parsedData = JSON.parse(event.data);
-            if (parsedData.type === "state" && parsedData.message) {
-              const stateData = parsedData.message;
-              if (stateData.player1) {
-                playerStateRef.current.p1x = stateData.player1.x || 0;
-                playerStateRef.current.p1y = stateData.player1.y || 0;
+            
+            // Handle state messages
+            if (parsedData.type === "state") {
+              const stateName = parsedData.name;
+              const stateData = parsedData.data;
+
+              if (stateName === "level_data") {
+                // Update level data and game objects
+                if (stateData.m_levelLength !== undefined) {
+                  playerStateRef.current.levelLength = stateData.m_levelLength || 3000;
+                  // Update length scale factor when level length changes
+                  const splineLength = splineRef.current.length(1000);
+                  const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+                  lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
+                }
+                // Update game objects (only sent once during level_reset)
+                if (stateData.m_gameObjects && Array.isArray(stateData.m_gameObjects)) {
+                  gameObjectsRef.current = stateData.m_gameObjects.map((obj: any) => ({
+                    x: obj.m_x || 0,
+                    y: obj.m_y || 0,
+                    rotation: obj.m_rotation || 0,
+                    scaleX: obj.m_scaleX || 1,
+                    scaleY: obj.m_scaleY || 1,
+                    opacity: obj.m_opacity || 1,
+                    visible: obj.m_visible !== false,
+                    objectId: obj.m_objectId || -1,
+                    nativePtr: obj.m_nativePtr || 0
+                  }));
+                }
+              } else if (stateName === "live_level_data") {
+                // Update live player data
+                if (stateData.m_player1) {
+                  playerStateRef.current.p1x = stateData.m_player1.m_x || 0;
+                  playerStateRef.current.p1y = stateData.m_player1.m_y || 0;
+                }
               }
-              if (stateData.levelLength !== undefined) {
-                playerStateRef.current.levelLength = stateData.levelLength || 3000;
-                // Update length scale factor when level length changes
-                const splineLength = splineRef.current.length(1000);
-                const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
-                lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
-              }
-              
-              // Update game objects
-              if (stateData.objects && Array.isArray(stateData.objects)) {
-                gameObjectsRef.current = stateData.objects.map((obj: any) => ({
-                  x: obj.x || 0,
-                  y: obj.y || 0,
-                  rotation: obj.rotation || 0,
-                  scaleX: obj.scaleX || 1,
-                  scaleY: obj.scaleY || 1,
-                  opacity: obj.opacity || 1,
-                  visible: obj.visible !== false,
-                  objectId: obj.objectId || -1,
-                  nativePtr: obj.nativePtr
-                }));
+            }
+            // Handle event messages
+            else if (parsedData.type === "event") {
+              const eventName = parsedData.name;
+              const eventData = parsedData.data;
+
+              if (eventName === "level_exit") {
+                // Clear all game objects when exiting level
+                gameObjectsRef.current = [];
+                console.log("Level exit - cleared all game objects");
+              } else if (eventName === "level_reset") {
+                // level_reset event - objects are loaded via level_data message
+                console.log("Level reset event received");
               }
             }
           } catch (e) {

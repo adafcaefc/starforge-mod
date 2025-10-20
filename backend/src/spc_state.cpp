@@ -5,51 +5,63 @@
 #include <sstream>
 
 namespace spc {
-    std::string State::toJSON() const {
+    // SendableState
+    nlohmann::json State::SendableState::getMessage() {
         nlohmann::json j;
         j["type"] = "state";
-        
-        // Convert game objects to JSON array
-        nlohmann::json objectsArray = nlohmann::json::array();
-        for (const auto& obj : m_gameObjects) {
-            nlohmann::json objJson = {
-                {"x", obj.m_x},
-                {"y", obj.m_y},
-                {"rotation", obj.m_rotation},
-                {"scaleX", obj.m_scaleX},
-                {"scaleY", obj.m_scaleY},
-                {"opacity", obj.m_opacity},
-                {"visible", obj.m_visible},
-                {"objectId", obj.m_objectId},
-                {"nativePtr", obj.m_nativePtr}
-            };
-            objectsArray.push_back(objJson);
-        }
-        
-        j["message"] = {
-            {"mode", static_cast<int>(m_mode)},
-            {"player1",
-             {{"x", m_player1.m_x},
-              {"y", m_player1.m_y},
-              {"mode", static_cast<int>(m_player1.m_mode)},
-              {"rotation", m_player1.m_rotation},
-              {"yVelocity", m_player1.m_yVelocity}}},
-            {"player2",
-             {{"x", m_player2.m_x},
-              {"y", m_player2.m_y},
-              {"mode", static_cast<int>(m_player2.m_mode)},
-              {"rotation", m_player2.m_rotation},
-              {"yVelocity", m_player2.m_yVelocity}}},
-            {"bgColor", {m_bgColor.m_r, m_bgColor.m_g, m_bgColor.m_b}},
-            {"lineColor", {m_lineColor.m_r, m_lineColor.m_g, m_lineColor.m_b}},
-            {"gColor", {m_gColor.m_r, m_gColor.m_g, m_gColor.m_b}},
-            {"g2Color", {m_g2Color.m_r, m_g2Color.m_g, m_g2Color.m_b}},
-            {"mgColor", {m_mgColor.m_r, m_mgColor.m_g, m_mgColor.m_b}},
-            {"mg2Color", {m_mg2Color.m_r, m_mg2Color.m_g, m_mg2Color.m_b}},
-            {"levelID", m_levelID},
-            {"levelLength", m_levelLength},
-            {"objects", objectsArray}
-        };
+        j["name"] = getName();
+        j["data"] = getJSON();
+        return j;
+    }
+
+    // GameState
+    std::string State::GameState::getName() const {
+        return "game_state";
+    }
+
+    nlohmann::json State::GameState::getJSON() {
+        nlohmann::json j(*this);
+        return j;
+    }
+
+    // LevelData
+    std::string State::LevelData::getName() const {
+        return "level_data";
+    }
+
+    nlohmann::json State::LevelData::getJSON() {
+        nlohmann::json j(*this);
+        return j;
+    }
+
+    // LiveLevelData
+    std::string State::LiveLevelData::getName() const {
+        return "live_level_data";
+    }
+
+    nlohmann::json State::LiveLevelData::getJSON() {
+        nlohmann::json j(*this);
+        return j;
+    }
+
+    // State member functions
+    std::string State::getGameStateMessage() {
+        return m_gameState.getMessage().dump();
+    }
+
+    std::string State::getLevelDataMessage() {
+        return m_levelData.getMessage().dump();
+    }
+
+    std::string State::getLiveLevelDataMessage() {
+        return m_liveLevelData.getMessage().dump();
+    }
+
+    std::string State::getEventMessage(const std::string& eventName, const nlohmann::json& eventData) {
+        nlohmann::json j;
+        j["type"] = "event";
+        j["name"] = eventName;
+        j["data"] = eventData;
         return j.dump();
     }
 }

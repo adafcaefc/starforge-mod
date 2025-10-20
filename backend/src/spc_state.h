@@ -3,13 +3,11 @@
 #include <cstdint>
 #include <string>
 
-#include "spc_projector.h"
 #include "spc_socket.h"
 
 namespace spc {
     class State {
     public:
-        std::shared_ptr<projector::Recorder> recorder = std::make_shared<projector::Recorder>();
         std::shared_ptr<socket::SocketServer> server = socket::SocketServer::create(6671u);
 
         struct GameObject
@@ -27,7 +25,7 @@ namespace spc {
 
         struct ColorRGB {
             uint8_t m_r = 0;
-            uint8_t m_g = 0;  
+            uint8_t m_g = 0;
             uint8_t m_b = 0;
         };
 
@@ -35,6 +33,7 @@ namespace spc {
             Idle = 0,
             Playing = 1,
             Paused = 2,
+            Editor = 3,
         };
 
         struct PlayerState {
@@ -60,22 +59,47 @@ namespace spc {
             return &instance;
         }
 
-        // Convert state to JSON string
-        std::string toJSON() const;
+        struct SendableState {
+            virtual std::string getName() const = 0;
+            virtual nlohmann::json getJSON() = 0;
+            virtual nlohmann::json getMessage();
+        };
 
-        Mode m_mode = Mode::Idle;
-        PlayerState m_player1;
-        PlayerState m_player2;
-        ColorRGB m_bgColor = {0, 0, 0};
-        ColorRGB m_lineColor = { 0, 0, 0 };
-        ColorRGB m_gColor = {0, 0, 0};
-        ColorRGB m_g2Color = {0, 0, 0};
-        ColorRGB m_mgColor = {0, 0, 0};
-        ColorRGB m_mg2Color = {0, 0, 0};
-        uint32_t m_levelID = 0;
-        float m_levelLength = 0.0f;
+        struct GameState : public SendableState {
+            Mode m_mode = Mode::Idle;
+            std::string getName() const override;
+            nlohmann::json getJSON() override;
+        };
 
-        std::vector<GameObject> m_gameObjects;
+        struct LevelData : public SendableState {
+            uint32_t m_levelID = 0;
+            float m_levelLength = 0.0f;
+            std::vector<GameObject> m_gameObjects;
+            std::string getName() const override;
+            nlohmann::json getJSON() override;
+        };
+
+        struct LiveLevelData : public SendableState {
+            PlayerState m_player1;
+            PlayerState m_player2;
+            ColorRGB m_bgColor = { 0, 0, 0 };
+            ColorRGB m_lineColor = { 0, 0, 0 };
+            ColorRGB m_gColor = { 0, 0, 0 };
+            ColorRGB m_g2Color = { 0, 0, 0 };
+            ColorRGB m_mgColor = { 0, 0, 0 };
+            ColorRGB m_mg2Color = { 0, 0, 0 };
+            std::string getName() const override;
+            nlohmann::json getJSON() override;
+        };
+
+        GameState m_gameState;
+        LevelData m_levelData;
+        LiveLevelData m_liveLevelData;
+
+        std::string getGameStateMessage();
+        std::string getLevelDataMessage();
+        std::string getLiveLevelDataMessage();
+        std::string getEventMessage(const std::string& eventName, const nlohmann::json& eventData = nlohmann::json());
 
     private:
         State() = default;
@@ -85,4 +109,11 @@ namespace spc {
         State& operator=(State const&) = delete;
         State& operator=(State&&) = delete;
     };
+
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::GameObject, m_x, m_y, m_rotation, m_scaleX, m_scaleY, m_opacity, m_visible, m_objectId, m_nativePtr);
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::ColorRGB, m_r, m_g, m_b);
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::PlayerState, m_x, m_y, m_rotation, m_yVelocity, m_mode);
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::GameState, m_mode);
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::LevelData, m_levelID, m_levelLength, m_gameObjects);
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::LiveLevelData, m_player1, m_player2, m_bgColor, m_lineColor, m_gColor, m_g2Color, m_mgColor, m_mg2Color);
 }

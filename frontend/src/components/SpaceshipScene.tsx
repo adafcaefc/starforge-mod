@@ -195,69 +195,88 @@ function LaptopModel({ gameModeRef, playerStateRef, colorStateRef, modelOffsetRe
             }
           });
         } else if (typeof event.data === 'string') {
-          // Text message - could be base64 (legacy) or JSON state
+          // Text message - could be base64 (legacy) or JSON state/event
           try {
             const parsedData = JSON.parse(event.data);
 
-            // Check if this is the new state format with type: "state"
-            if (parsedData.type === "state" && parsedData.message) {
-              const stateData = parsedData.message;
-              // This is JSON state data - update game mode and player positions
-              const modeNames = ["Idle", "Playing", "Paused"];
-              if (stateData.mode !== undefined) {
-                gameModeRef.current = modeNames[stateData.mode] || "Unknown";
-              }
-              if (stateData.player1) {
-                playerStateRef.current.p1x = stateData.player1.x || 0;
-                playerStateRef.current.p1y = stateData.player1.y || 0;
-                playerStateRef.current.p1rotation = stateData.player1.rotation || 0;
-                playerStateRef.current.p1yVelocity = stateData.player1.yVelocity || 0;
-              }
-              if (stateData.player2) {
-                playerStateRef.current.p2x = stateData.player2.x || 0;
-                playerStateRef.current.p2y = stateData.player2.y || 0;
-                playerStateRef.current.p2rotation = stateData.player2.rotation || 0;
-                playerStateRef.current.p2yVelocity = stateData.player2.yVelocity || 0;
-              }
-              if (stateData.levelLength !== undefined) {
-                playerStateRef.current.levelLength = stateData.levelLength || 1;
-              }
-              // Update color data
-              if (stateData.bgColor) {
-                colorStateRef.current.bgColor = stateData.bgColor;
-              }
-              if (stateData.lineColor) {
-                colorStateRef.current.lineColor = stateData.lineColor;
-              }
-              if (stateData.gColor) {
-                colorStateRef.current.gColor = stateData.gColor;
-              }
-              if (stateData.g2Color) {
-                colorStateRef.current.g2Color = stateData.g2Color;
-              }
-              if (stateData.mgColor) {
-                colorStateRef.current.mgColor = stateData.mgColor;
-              }
-              if (stateData.mg2Color) {
-                colorStateRef.current.mg2Color = stateData.mg2Color;
-              }
+            // Handle state messages
+            if (parsedData.type === "state") {
+              const stateName = parsedData.name;
+              const stateData = parsedData.data;
 
-              // Update game objects
-              if (stateData.objects && Array.isArray(stateData.objects)) {
-                gameObjectsRef.current = stateData.objects.map((obj: any) => ({
-                  x: obj.x || 0,
-                  y: obj.y || 0,
-                  rotation: obj.rotation || 0,
-                  scaleX: obj.scaleX || 1,
-                  scaleY: obj.scaleY || 1,
-                  opacity: obj.opacity || 1,
-                  visible: obj.visible !== false,
-                  objectId: obj.objectId || -1,
-                  nativePtr: obj.nativePtr
-                }));
+              if (stateName === "game_state") {
+                // Update game mode
+                const modeNames = ["Idle", "Playing", "Paused", "Editor"];
+                if (stateData.m_mode !== undefined) {
+                  gameModeRef.current = modeNames[stateData.m_mode] || "Unknown";
+                }
+              } else if (stateName === "level_data") {
+                // Update level data and game objects
+                if (stateData.m_levelLength !== undefined) {
+                  playerStateRef.current.levelLength = stateData.m_levelLength || 1;
+                }
+                // Update game objects (only sent once during level_reset)
+                if (stateData.m_gameObjects && Array.isArray(stateData.m_gameObjects)) {
+                  gameObjectsRef.current = stateData.m_gameObjects.map((obj: any) => ({
+                    x: obj.m_x || 0,
+                    y: obj.m_y || 0,
+                    rotation: obj.m_rotation || 0,
+                    scaleX: obj.m_scaleX || 1,
+                    scaleY: obj.m_scaleY || 1,
+                    opacity: obj.m_opacity || 1,
+                    visible: obj.m_visible !== false,
+                    objectId: obj.m_objectId || -1,
+                    nativePtr: obj.m_nativePtr || 0
+                  }));
+                }
+              } else if (stateName === "live_level_data") {
+                // Update live player and color data
+                if (stateData.m_player1) {
+                  playerStateRef.current.p1x = stateData.m_player1.m_x || 0;
+                  playerStateRef.current.p1y = stateData.m_player1.m_y || 0;
+                  playerStateRef.current.p1rotation = stateData.m_player1.m_rotation || 0;
+                  playerStateRef.current.p1yVelocity = stateData.m_player1.m_yVelocity || 0;
+                }
+                if (stateData.m_player2) {
+                  playerStateRef.current.p2x = stateData.m_player2.m_x || 0;
+                  playerStateRef.current.p2y = stateData.m_player2.m_y || 0;
+                  playerStateRef.current.p2rotation = stateData.m_player2.m_rotation || 0;
+                  playerStateRef.current.p2yVelocity = stateData.m_player2.m_yVelocity || 0;
+                }
+                // Update color data
+                if (stateData.m_bgColor) {
+                  colorStateRef.current.bgColor = [stateData.m_bgColor.m_r || 0, stateData.m_bgColor.m_g || 0, stateData.m_bgColor.m_b || 0];
+                }
+                if (stateData.m_lineColor) {
+                  colorStateRef.current.lineColor = [stateData.m_lineColor.m_r || 0, stateData.m_lineColor.m_g || 0, stateData.m_lineColor.m_b || 0];
+                }
+                if (stateData.m_gColor) {
+                  colorStateRef.current.gColor = [stateData.m_gColor.m_r || 0, stateData.m_gColor.m_g || 0, stateData.m_gColor.m_b || 0];
+                }
+                if (stateData.m_g2Color) {
+                  colorStateRef.current.g2Color = [stateData.m_g2Color.m_r || 0, stateData.m_g2Color.m_g || 0, stateData.m_g2Color.m_b || 0];
+                }
+                if (stateData.m_mgColor) {
+                  colorStateRef.current.mgColor = [stateData.m_mgColor.m_r || 0, stateData.m_mgColor.m_g || 0, stateData.m_mgColor.m_b || 0];
+                }
+                if (stateData.m_mg2Color) {
+                  colorStateRef.current.mg2Color = [stateData.m_mg2Color.m_r || 0, stateData.m_mg2Color.m_g || 0, stateData.m_mg2Color.m_b || 0];
+                }
               }
-            } else {
-              // Legacy format or unknown JSON - ignore
+            } 
+            // Handle event messages
+            else if (parsedData.type === "event") {
+              const eventName = parsedData.name;
+              const eventData = parsedData.data;
+
+              if (eventName === "level_exit") {
+                // Clear all game objects when exiting level
+                gameObjectsRef.current = [];
+                console.log("Level exit - cleared all game objects");
+              } else if (eventName === "level_reset") {
+                // level_reset event - objects are loaded via level_data message
+                console.log("Level reset event received");
+              }
             }
           } catch (e) {
             // Not JSON, assume it's base64 screen data (legacy support)

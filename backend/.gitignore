@@ -62,3 +62,8 @@ build-*/
 # CLion
 .idea/
 /cmake-build-*/
+
+# Extra by Adaf
+*.geode
+out/
+bin/

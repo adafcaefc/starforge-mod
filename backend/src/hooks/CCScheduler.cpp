@@ -4,6 +4,8 @@
 #include "../spc_state.h"
 #include "../spc_webserver.h"
 
+#include <RenderTexture.hpp>
+
 using namespace geode::prelude;
 
 namespace spc {
@@ -25,75 +27,113 @@ namespace spc {
         else state.m_mode = spc::State::PlayerState::Mode::Cube;
     }
 
-    static void loadState() {
+    static void loadLevelState(GJBaseGameLayer* layer) {
         auto state = spc::State::get();
-        state->m_mode = spc::State::Mode::Idle;
 
+        if (auto p1 = layer->m_player1) {
+            spcProcessPlayer(p1, state->m_liveLevelData.m_player1);
+        }
+
+        if (auto p2 = layer->m_player2) {
+            spcProcessPlayer(p2, state->m_liveLevelData.m_player2);
+        }
+
+        if (auto em = layer->m_effectManager)
+        {
+            static const auto loadColorAction = [](int tag, spc::State::ColorRGB& color, ColorAction* ca) {
+                color.m_r = ca->m_color.r;
+                color.m_g = ca->m_color.g;
+                color.m_b = ca->m_color.b;
+                };
+            if (auto ca = em->getColorAction(1000)) {
+                loadColorAction(1000, state->m_liveLevelData.m_bgColor, ca);
+            }
+            if (auto ca = em->getColorAction(1001)) {
+                loadColorAction(1002, state->m_liveLevelData.m_gColor, ca);
+            }
+            if (auto ca = em->getColorAction(1002)) {
+                loadColorAction(1003, state->m_liveLevelData.m_lineColor, ca);
+            }
+            if (auto ca = em->getColorAction(1009)) {
+                loadColorAction(1004, state->m_liveLevelData.m_g2Color, ca);
+            }
+            if (auto ca = em->getColorAction(1013)) {
+                loadColorAction(1010, state->m_liveLevelData.m_mgColor, ca);
+            }
+            if (auto ca = em->getColorAction(1014)) {
+                loadColorAction(1010, state->m_liveLevelData.m_mg2Color, ca);
+            }
+        }
+
+    }
+
+    static void loadModeState() {
+        auto state = spc::State::get();
+        state->m_gameState.m_mode = spc::State::Mode::Idle;
         if (auto pl = PlayLayer::get()) {
-            state->m_mode = spc::State::Mode::Playing;
-
+            state->m_gameState.m_mode = spc::State::Mode::Playing;
             if (pl->m_isPaused) {
-                state->m_mode = spc::State::Mode::Paused;
+                state->m_gameState.m_mode = spc::State::Mode::Paused;
             }
+        }
+        if (auto lel = LevelEditorLayer::get()) {
+            state->m_gameState.m_mode = spc::State::Mode::Editor;
+        }
+    }
 
-            state->m_levelLength = pl->m_levelLength;
+    static void loadState() {
 
-            if (auto level = pl->m_level) {
-                state->m_levelID = level->m_levelID;
-            }
-
-            if (auto p1 = pl->m_player1) {
-                spcProcessPlayer(p1, state->m_player1);
-            }
-
-            if (auto p2 = pl->m_player2) {
-                spcProcessPlayer(p2, state->m_player2);
-            }
-
-            if (auto em = pl->m_effectManager)
-            {
-                static const auto loadColorAction = [](int tag, spc::State::ColorRGB& color, ColorAction* ca) {
-                    color.m_r = ca->m_color.r;
-                    color.m_g = ca->m_color.g;
-                    color.m_b = ca->m_color.b;
-                    };
-                if (auto ca = em->getColorAction(1000)) {
-                    loadColorAction(1000, state->m_bgColor, ca);
-                }
-                if (auto ca = em->getColorAction(1001)) {
-                    loadColorAction(1002, state->m_gColor, ca);
-                }
-                if (auto ca = em->getColorAction(1002)) {
-                    loadColorAction(1003, state->m_lineColor, ca);
-                }
-                if (auto ca = em->getColorAction(1009)) {
-                    loadColorAction(1004, state->m_g2Color, ca);
-                }
-                if (auto ca = em->getColorAction(1013)) {
-                    loadColorAction(1010, state->m_mgColor, ca);
-                }
-                if (auto ca = em->getColorAction(1014)) {
-                    loadColorAction(1010, state->m_mg2Color, ca);
-                }
-            }       
+        auto state = spc::State::get();
+        loadModeState();
+        switch (state->m_gameState.m_mode)
+        {
+        case spc::State::Mode::Playing:
+            loadLevelState(PlayLayer::get());
+            break;
+        case spc::State::Mode::Editor:
+            loadLevelState(LevelEditorLayer::get());
+            break;
+        default:
+            break;
         }
     }
 }
 
 class $modify(cocos2d::CCScheduler) {
+    void spcCaptureFrame() {
+        uint16_t width = 440u;
+        uint16_t height = 240u;
+
+        static RenderTexture render(width, height);
+
+        std::unique_ptr<uint8_t[]> data = render.captureData(CCScene::get());
+
+        auto server = spc::State::get()->server;
+        server->sendBinary(std::vector<uint8_t>(data.get(), data.get() + (width * height * 4)));
+
+        auto state = spc::State::get();
+        server->send(state->getGameStateMessage());
+
+        spc::loadState();
+    }
+
     void update(float dt) {
         static bool init = false;
 
-        auto recorder = spc::State::get()->recorder;
-
         if (!init) {
             init = true;
-            recorder->start();
             std::thread(spc::webserver::run).detach();
         }
 
         cocos2d::CCScheduler::update(dt);
-        recorder->capture_frame();
-        spc::loadState();
+
+        // https://github.com/undefined06855/gd-render-texture
+        static std::chrono::steady_clock::time_point lastTime = std::chrono::steady_clock::now();
+        auto currentTime = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastTime).count();
+        if (elapsed >= 33) {
+            spcCaptureFrame();
+            lastTime = currentTime;
+        }
     }
 };

@@ -6,13 +6,12 @@ using namespace geode::prelude;
 
 namespace spc {
     // to do: only load level that contains data
-    static void loadObjects(PlayLayer* pl)
-    {
+    static void loadObjects(GJBaseGameLayer* layer) {
         auto state = spc::State::get();
-        state->m_gameObjects.clear();
+        state->m_levelData.m_gameObjects.clear();
 
-        for (auto objx : CCArrayExt<GameObject*>(pl->m_objects)) {
-            if (objx == pl->m_anticheatSpike) { continue; }
+        for (auto objx : CCArrayExt<GameObject*>(layer->m_objects)) {
+            if (objx == layer->m_anticheatSpike) { continue; }
             spc::State::GameObject obj;
             obj.m_x = objx->getPositionX();
             obj.m_y = objx->getPositionY();
@@ -23,14 +22,35 @@ namespace spc {
             obj.m_visible = objx->isVisible();
             obj.m_nativePtr = reinterpret_cast<uintptr_t>(objx);
             obj.m_objectId = objx->m_objectID;
-            state->m_gameObjects.push_back(obj);
+            state->m_levelData.m_gameObjects.push_back(obj);
         }
+    }
+    
+    static void loadLevelData(GJBaseGameLayer* layer) {
+        auto state = spc::State::get();
+        state->m_levelData.m_levelLength = layer->m_levelLength;
+
+        if (auto level = layer->m_level) {
+            state->m_levelData.m_levelID = level->m_levelID;
+        }
+
     }
 }
 
 class $modify(PlayLayer) {
     void resetLevel() {
         PlayLayer::resetLevel();
+
         spc::loadObjects(this);
+        spc::loadLevelData(this);
+
+        auto state = spc::State::get();
+        state->server->send(state->getLevelDataMessage());
+        state->server->send(state->getEventMessage("level_reset"));
+    }
+    void onExit() {
+        PlayLayer::onExit();
+        auto state = spc::State::get();
+        state->server->send(state->getEventMessage("level_exit"));
     }
 };

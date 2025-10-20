@@ -1,17 +1,27 @@
 {
 	"geode": "4.0.1",
 	"gd": {
-		"win": "2.2074",
-		"android": "2.2074",
-		"mac": "2.2074",
-		"ios": "2.2074"
+		"win": "2.2074"
 	},
-	"id": "adaf_and_rainixgd.aboard_the_ss_starforge",
+	"id": "adaf.starforge",
 	"name": "Aboard the SS Starforge",
-	"version": "v1.0.0",
-	"developer": "adaf and RainixGD",
+	"version": "v1.0.0-beta.1",
+	"developer": "adaf",
 	"description": "",
-	"dependencies": {
-		"geode.node-ids": ">=v1.20.0"
-	}
+	"tags": [
+		"content",
+		"modtober25"
+	],
+	"dependencies": [
+		{
+			"id": "geode.node-ids",
+			"version": ">=1.18.0",
+			"importance": "required"
+		},
+		{
+			"id": "hjfod.gmd-api",
+			"version": ">=1.4.1",
+			"importance": "required"
+		}
+	]
 }
