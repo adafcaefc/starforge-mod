@@ -33,6 +33,7 @@ jobs:
           cd backend
           mkdir out
           cp -r bin/resources out/resources
+          cp -r resources out/resources
           cp README.md out/about.md
           cp changelog.md out/
           cp logo.png out/

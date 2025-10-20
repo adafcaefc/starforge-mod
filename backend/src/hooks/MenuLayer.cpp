@@ -49,7 +49,7 @@ class $modify(MyMenuLayer, MenuLayer) {
 
         auto animation = cocos2d::CCAnimation::create();
         animation->setDelayPerUnit(1.0f / 24.0f);
-        addAnimations(animation, "C:\\Users\\Windows\\Desktop\\blender test", 64u);
+        addAnimations(animation, geode::Mod::get()->getResourcesDir() / "_geode" / "rendered" / "btnufo", 64u);
         auto gif = cocos2d::CCSprite::create();
         gif->runAction(cocos2d::CCRepeatForever::create(cocos2d::CCAnimate::create(animation)));
 
