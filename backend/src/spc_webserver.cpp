@@ -77,7 +77,7 @@ namespace spc {
             );
 
             // Serve static files under /files prefix
-            CROW_ROUTE(app, "/files").methods("GET"_method)
+            CROW_ROUTE(app, "/").methods("GET"_method)
             ([](crow::request const& req, crow::response& res) {
                 try {
                     namespace fs = std::filesystem;
@@ -108,7 +108,7 @@ namespace spc {
                 }
             });
 
-            CROW_ROUTE(app, "/files/<path>").methods("GET"_method)
+            CROW_ROUTE(app, "/<path>").methods("GET"_method)
             ([](crow::request const& req,
                 crow::response& res,
                 std::string filePath) {
