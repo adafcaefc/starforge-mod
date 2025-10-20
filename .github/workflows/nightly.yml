@@ -1,4 +1,4 @@
-name: Build and Developmental Release
+﻿name: Build and Developmental Release
 
 on:
   push:
@@ -18,6 +18,8 @@ jobs:
 
       - uses: geode-sdk/build-geode-mod@main
         id: build
+        with:
+          path: backend 
         
       - name: Build Frontend
         run: |
