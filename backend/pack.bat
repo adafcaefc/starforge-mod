@@ -13,5 +13,3 @@ for /R build %%f in (*.dll) do copy "%%f" "out\"
 
 cd out
 7z a -tzip ../adaf.starforge.geode -mx9 *
-
-pause>nul
