@@ -34,8 +34,8 @@ jobs:
           mkdir out
           cp -r bin/resources out/resources
           cp README.md out/about.md
-          cp bin/changelog.md out/
-          cp bin/logo.png out/
+          cp changelog.md out/
+          cp logo.png out/
           cp mod.json out/
           cp build/*.dll out/
           cd out
