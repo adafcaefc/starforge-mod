@@ -5,6 +5,9 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import dynamic from "next/dynamic";
+
+const ObjectModelsEditor = dynamic(() => import("./ObjectModelsEditor"), { ssr: false });
 
 // Cubic Bezier curve implementation matching the C++ Curve class
 class CubicBezierCurve {
@@ -272,22 +275,32 @@ class Spline {
   }
 }
 
-// GameObject component (meteors) - same as SpaceshipScene
+// GameObject component - loads models based on objectModels data
 function GameObject({
   position,
   scale,
   rotation,
   objectId,
   nativePtr,
+  objectModelsDataRef,
 }: {
   position: [number, number, number];
   scale: [number, number];
   rotation: number;
   objectId: number;
   nativePtr: number;
+  objectModelsDataRef: React.MutableRefObject<{
+    [objectId: string]: {
+      scaleX: number;
+      scaleY: number;
+      modelTextures: string[];
+      shouldSpin?: boolean;
+    };
+  }>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<THREE.Group | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
   const seededRandom = (seed: number, offset: number = 0) => {
     const x = Math.sin(seed + offset) * 10000;
@@ -302,39 +315,76 @@ function GameObject({
     return n >>> 0;
   }
 
-  const meteorIndex = (hash32(nativePtr) % 3) + 1;
   const rotationSpeedX = 30 * seededRandom(nativePtr, 1) * 0.02 - 0.01;
   const rotationSpeedY = 30 * seededRandom(nativePtr, 2) * 0.03 - 0.015;
   const rotationSpeedZ = 30 * seededRandom(nativePtr, 3) * 0.02 - 0.01;
   const breatheSpeed = seededRandom(nativePtr, 4) * 2 + 1;
   const breatheAmount = seededRandom(nativePtr, 5) * 0.02 + 0.01;
 
+  // Select model based on objectModels data
   useEffect(() => {
-    const meteorPath = `/models/meteor${meteorIndex}.glb`;
+    const objectModelData = objectModelsDataRef.current[objectId.toString()];
+    console.log("ObjectModelData for objectId", objectId, ":", objectModelData);
+    if (objectModelData && objectModelData.modelTextures.length > 0) {
+      // If multiple models, select one at random based on nativePtr
+      const modelIndex = hash32(nativePtr) % objectModelData.modelTextures.length;
+      const modelName = objectModelData.modelTextures[modelIndex];
+      setSelectedModel(modelName);
+    } else {
+      // No model data - don't load anything
+      setSelectedModel(null);
+    }
+  }, [objectId, nativePtr, objectModelsDataRef]);
+
+  useEffect(() => {
+    if (!selectedModel) return;
+
+    const modelPath = `/models/objects/${selectedModel}`;
     const loader = new GLTFLoader();
     loader.load(
-      meteorPath,
+      modelPath,
       (gltf) => {
         setScene(gltf.scene);
       },
       undefined,
       (error) => {
-        console.error(`Failed to load ${meteorPath}:`, error);
+        console.error(`Failed to load ${modelPath}:`, error);
       }
     );
-  }, [meteorIndex]);
+  }, [selectedModel]);
 
   useFrame((state) => {
     if (groupRef.current) {
       const time = state.clock.getElapsedTime();
 
-      groupRef.current.rotation.x = time * rotationSpeedX;
-      groupRef.current.rotation.y = time * rotationSpeedY;
-      groupRef.current.rotation.z = time * rotationSpeedZ;
+      // Get objectModel data to check if spinning should be enabled
+      const objectModelData = objectModelsDataRef.current[objectId];
+      const shouldSpin = objectModelData?.shouldSpin ?? true; // Default to true for backward compatibility
+
+      // Only apply rotation if shouldSpin is true
+      if (shouldSpin) {
+        groupRef.current.rotation.x = time * rotationSpeedX;
+        groupRef.current.rotation.y = time * rotationSpeedY;
+        groupRef.current.rotation.z = time * rotationSpeedZ;
+      } else {
+        // Keep rotation static
+        groupRef.current.rotation.x = 0;
+        groupRef.current.rotation.y = 0;
+        groupRef.current.rotation.z = 0;
+      }
 
       const breathe = Math.sin(time * breatheSpeed) * breatheAmount;
+      
+      // Get scale from objectModels data if available
+      const modelScaleX = objectModelData?.scaleX || 1.0;
+      const modelScaleY = objectModelData?.scaleY || 1.0;
+      
       const baseScale = 0.12;
-      groupRef.current.scale.set(scale[0] * baseScale, scale[1] * baseScale, scale[0] * baseScale);
+      groupRef.current.scale.set(
+        scale[0] * baseScale * modelScaleX,
+        scale[1] * baseScale * modelScaleY,
+        scale[0] * baseScale * modelScaleX
+      );
 
       groupRef.current.position.set(position[0], position[1] + breathe, position[2]);
     }
@@ -358,6 +408,7 @@ function UFOModel({
   playerStateRef,
   lengthScaleFactorRef,
   gameObjectsRef,
+  objectModelsDataRef,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -379,6 +430,13 @@ function UFOModel({
       nativePtr: number;
     }>
   >;
+  objectModelsDataRef: React.MutableRefObject<{
+    [objectId: string]: {
+      scaleX: number;
+      scaleY: number;
+      modelTextures: string[];
+    };
+  }>;
 }) {
   const modelRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<THREE.Group | null>(null);
@@ -474,6 +532,10 @@ function UFOModel({
                     objectId: obj.m_objectId || -1,
                     nativePtr: obj.m_nativePtr || 0
                   }));
+                }
+                // Update object models data
+                if (stateData.m_objectModels) {
+                  objectModelsDataRef.current = stateData.m_objectModels;
                 }
               } else if (stateName === "live_level_data") {
                 // Update live player data
@@ -793,6 +855,7 @@ function GameObjectsField({
   splineRef,
   lengthScaleFactorRef,
   playerStateRef,
+  objectModelsDataRef,
 }: {
   gameObjectsRef: React.MutableRefObject<
     Array<{
@@ -813,6 +876,13 @@ function GameObjectsField({
     p1x: number;
     p1y: number;
     levelLength: number;
+  }>;
+  objectModelsDataRef: React.MutableRefObject<{
+    [objectId: string]: {
+      scaleX: number;
+      scaleY: number;
+      modelTextures: string[];
+    };
   }>;
 }) {
   const [objects, setObjects] = useState<
@@ -877,6 +947,7 @@ function GameObjectsField({
             rotation={obj.rotation}
             objectId={obj.objectId}
             nativePtr={obj.nativePtr}
+            objectModelsDataRef={objectModelsDataRef}
           />
         );
       })}
@@ -961,6 +1032,7 @@ function SplineEditorControls({
   onLoadSpline,
   onLoadFromLevel,
   onSaveToLevel,
+  onOpenObjectModelsEditor,
   splineRef,
 }: {
   onAddSegment: () => void;
@@ -969,6 +1041,7 @@ function SplineEditorControls({
   onLoadSpline: () => void;
   onLoadFromLevel: () => void;
   onSaveToLevel: () => void;
+  onOpenObjectModelsEditor: () => void;
   splineRef: React.MutableRefObject<Spline>;
 }) {
   const [segmentCount, setSegmentCount] = useState(0);
@@ -1033,6 +1106,14 @@ function SplineEditorControls({
             </button>
           </div>
         </div>
+        <div className="border-t border-gray-600 pt-2 mt-1">
+          <button
+            onClick={onOpenObjectModelsEditor}
+            className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-medium text-sm transition-colors"
+          >
+            🎨 Object Models Editor
+          </button>
+        </div>
       </div>
       <div className="mt-3 text-xs text-gray-400 space-y-1">
         <div>🖱️ Right-click + drag: Orbit</div>
@@ -1054,6 +1135,7 @@ function Scene({
   dragPlaneRef,
   raycasterRef,
   mouseRef,
+  objectModelsDataRef,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -1087,6 +1169,13 @@ function Scene({
   dragPlaneRef: React.MutableRefObject<THREE.Plane | null>;
   raycasterRef: React.MutableRefObject<THREE.Raycaster>;
   mouseRef: React.MutableRefObject<THREE.Vector2>;
+  objectModelsDataRef: React.MutableRefObject<{
+    [objectId: string]: {
+      scaleX: number;
+      scaleY: number;
+      modelTextures: string[];
+    };
+  }>;
 }) {
   return (
     <>
@@ -1113,12 +1202,14 @@ function Scene({
         playerStateRef={playerStateRef}
         lengthScaleFactorRef={lengthScaleFactorRef}
         gameObjectsRef={gameObjectsRef}
+        objectModelsDataRef={objectModelsDataRef}
       />
       <GameObjectsField
         gameObjectsRef={gameObjectsRef}
         splineRef={splineRef}
         lengthScaleFactorRef={lengthScaleFactorRef}
         playerStateRef={playerStateRef}
+        objectModelsDataRef={objectModelsDataRef}
       />
       <AnimatedCamera
         splineRef={splineRef}
@@ -1134,6 +1225,7 @@ function Scene({
 
 export default function SplineScene() {
   const [showUI, setShowUI] = useState(true);
+  const [showObjectModelsEditor, setShowObjectModelsEditor] = useState(false);
   const splineRef = useRef<Spline>(new Spline());
   const playerStateRef = useRef({
     p1x: 0,
@@ -1154,6 +1246,14 @@ export default function SplineScene() {
       nativePtr: number;
     }>
   >([]);
+
+  const objectModelsDataRef = useRef<{
+    [objectId: string]: {
+      scaleX: number;
+      scaleY: number;
+      modelTextures: string[];
+    };
+  }>({});
 
   const cameraControlRef = useRef({
     distance: 15,
@@ -1314,16 +1414,23 @@ export default function SplineScene() {
       spline.segments = [];
       
       // Load segments from level data
-      for (const segmentData of levelData.spline.segments) {
-        const segment = new CubicBezierCurve(
-          new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
-          new THREE.Vector3(segmentData.m1.x, segmentData.m1.y, segmentData.m1.z),
-          new THREE.Vector3(segmentData.m2.x, segmentData.m2.y, segmentData.m2.z),
-          new THREE.Vector3(segmentData.p2.x, segmentData.p2.y, segmentData.p2.z)
-        );
-        segment.p1NormalAngle = segmentData.p1NormalAngle || 0;
-        segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
-        spline.addSegment(segment);
+      if (levelData.spline && levelData.spline.segments) {
+        for (const segmentData of levelData.spline.segments) {
+          const segment = new CubicBezierCurve(
+            new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
+            new THREE.Vector3(segmentData.m1.x, segmentData.m1.y, segmentData.m1.z),
+            new THREE.Vector3(segmentData.m2.x, segmentData.m2.y, segmentData.m2.z),
+            new THREE.Vector3(segmentData.p2.x, segmentData.p2.y, segmentData.p2.z)
+          );
+          segment.p1NormalAngle = segmentData.p1NormalAngle || 0;
+          segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
+          spline.addSegment(segment);
+        }
+      }
+      
+      // Load object models if present
+      if (levelData.objectModels) {
+        objectModelsDataRef.current = levelData.objectModels;
       }
       
       spline.updateParameterList(10000);
@@ -1333,7 +1440,7 @@ export default function SplineScene() {
       const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
       lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
       
-      alert('✅ Spline loaded from level successfully!');
+      alert('✅ Spline and object models loaded from level successfully!');
       console.log('Spline loaded from level:', levelData);
     } catch (error) {
       console.error('Failed to load from level:', error);
@@ -1355,6 +1462,7 @@ export default function SplineScene() {
             p2NormalAngle: segment.p2NormalAngle,
           })),
         },
+        objectModels: objectModelsDataRef.current,
       };
 
       const response = await fetch('http://localhost:6673/api/leveldata/load', {
@@ -1371,7 +1479,7 @@ export default function SplineScene() {
       }
 
       const result = await response.json();
-      alert('✅ Spline saved to level successfully!');
+      alert('✅ Spline and object models saved to level successfully!');
       console.log('Spline saved to level:', result);
     } catch (error) {
       console.error('Failed to save to level:', error);
@@ -1491,6 +1599,7 @@ export default function SplineScene() {
             onLoadSpline={handleLoadSpline}
             onLoadFromLevel={handleLoadFromLevel}
             onSaveToLevel={handleSaveToLevel}
+            onOpenObjectModelsEditor={() => setShowObjectModelsEditor(true)}
             splineRef={splineRef}
           />
         )}
@@ -1506,6 +1615,7 @@ export default function SplineScene() {
             dragPlaneRef={dragPlaneRef}
             raycasterRef={raycasterRef}
             mouseRef={mouseRef}
+            objectModelsDataRef={objectModelsDataRef}
           />
           <OrbitControls
             enableZoom={false}
@@ -1515,6 +1625,12 @@ export default function SplineScene() {
           />
         </Canvas>
       </div>
+      {showObjectModelsEditor && (
+        <ObjectModelsEditor 
+          objectModelsDataRef={objectModelsDataRef}
+          onClose={() => setShowObjectModelsEditor(false)} 
+        />
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@
         "span": "cpp",
         "vector": "cpp",
         "xutility": "cpp",
-        "reflect": "cpp"
+        "reflect": "cpp",
+        "unordered_map": "cpp"
     }
 }
