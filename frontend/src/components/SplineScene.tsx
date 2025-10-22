@@ -1080,13 +1080,13 @@ function SplineEditorControls({
             onClick={onSaveSpline}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-sm transition-colors"
           >
-            💾 Save Spline
+            Save Spline
           </button>
           <button
             onClick={onLoadSpline}
             className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-medium text-sm transition-colors"
           >
-            📂 Load Spline
+            Load Spline
           </button>
         </div>
         <div className="border-t border-gray-600 pt-2 mt-1">
@@ -1096,13 +1096,13 @@ function SplineEditorControls({
               onClick={onLoadFromLevel}
               className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded font-medium text-sm transition-colors flex-1"
             >
-              ⬇️ Load from Level
+              Load from Level
             </button>
             <button
               onClick={onSaveToLevel}
               className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded font-medium text-sm transition-colors flex-1"
             >
-              ⬆️ Save to Level
+              Save to Level
             </button>
           </div>
         </div>
@@ -1111,14 +1111,14 @@ function SplineEditorControls({
             onClick={onOpenObjectModelsEditor}
             className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-medium text-sm transition-colors"
           >
-            🎨 Object Models Editor
+            Object Models Editor
           </button>
         </div>
       </div>
       <div className="mt-3 text-xs text-gray-400 space-y-1">
-        <div>🖱️ Right-click + drag: Orbit</div>
-        <div>🖱️ Shift + Right-drag: Pan</div>
-        <div>🖱️ Scroll: Zoom in/out</div>
+        <div>Right-click + drag: Orbit</div>
+        <div>Shift + Right-drag: Pan</div>
+        <div>Scroll: Zoom in/out</div>
       </div>
     </div>
   );
@@ -1226,6 +1226,17 @@ function Scene({
 export default function SplineScene() {
   const [showUI, setShowUI] = useState(true);
   const [showObjectModelsEditor, setShowObjectModelsEditor] = useState(false);
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: "success" | "error" | "info" }>>([]);
+  const toastIdCounter = useRef(0);
+  
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    const id = toastIdCounter.current++;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    }, 3000);
+  };
+  
   const splineRef = useRef<Spline>(new Spline());
   const playerStateRef = useRef({
     p1x: 0,
@@ -1252,6 +1263,7 @@ export default function SplineScene() {
       scaleX: number;
       scaleY: number;
       modelTextures: string[];
+      shouldSpin?: boolean;
     };
   }>({});
 
@@ -1385,7 +1397,7 @@ export default function SplineScene() {
           console.log('Spline loaded successfully');
         } catch (error) {
           console.error('Failed to load spline:', error);
-          alert('Failed to load spline file. Please check the file format.');
+          showToast('Failed to load spline file. Please check the file format.', 'error');
         }
       };
       reader.readAsText(file);
@@ -1440,11 +1452,11 @@ export default function SplineScene() {
       const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
       lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
       
-      alert('✅ Spline and object models loaded from level successfully!');
+      showToast('Spline and object models loaded from level successfully!', 'success');
       console.log('Spline loaded from level:', levelData);
     } catch (error) {
       console.error('Failed to load from level:', error);
-      alert(`❌ Failed to load from level: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showToast(`Failed to load from level: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     }
   };
 
@@ -1479,11 +1491,11 @@ export default function SplineScene() {
       }
 
       const result = await response.json();
-      alert('✅ Spline and object models saved to level successfully!');
+      showToast('Spline and object models saved to level successfully!', 'success');
       console.log('Spline saved to level:', result);
     } catch (error) {
       console.error('Failed to save to level:', error);
-      alert(`❌ Failed to save to level: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showToast(`Failed to save to level: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     }
   };
 
@@ -1631,6 +1643,24 @@ export default function SplineScene() {
           onClose={() => setShowObjectModelsEditor(false)} 
         />
       )}
+      
+      {/* Toast Notifications */}
+      <div className="fixed bottom-4 right-4 z-[60] space-y-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`px-4 py-3 rounded-lg shadow-lg border backdrop-blur-sm animate-slide-in-right ${
+              toast.type === "success"
+                ? "bg-green-900/90 border-green-600 text-green-100"
+                : toast.type === "error"
+                ? "bg-red-900/90 border-red-600 text-red-100"
+                : "bg-blue-900/90 border-blue-600 text-blue-100"
+            }`}
+          >
+            {toast.message}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
