@@ -239,8 +239,9 @@ namespace spc {
                 m_actions.pop();
 
                 lock.unlock();
+                try {
 
-                switch (a.m_type) {
+                    switch (a.m_type) {
                     case Action::Type::Subscribe: {
                         wspp_lock_guard guard(m_connectionLock);
                         m_connections.insert(a.m_hdl);
@@ -268,26 +269,43 @@ namespace spc {
                             auto self = shared_from_this();
                             geode::queueInMainThread([self, j] {
                                 self->processMouseEvent(j);
-                            });
+                                });
                         }
                         break;
                     }
                     default:
                         // unknown action type
                         break;
+                    }
+                }
+                catch (std::exception const& e) {
+                    // error handling
+                    continue;
                 }
             }
         }
 
         void SocketServer::send(std::string const& s) {
             for (auto& connection : m_connections) {
-                m_socketServer.send(connection, s, wspp::frame::opcode::value::TEXT);
+                try {
+                    m_socketServer.send(connection, s, wspp::frame::opcode::value::TEXT);
+                }
+                catch (std::exception const& e) {
+                    // error handling
+                    continue;
+                }
             }
         }
 
         void SocketServer::sendBinary(std::vector<uint8_t> const& data) {
             for (auto& connection : m_connections) {
-                m_socketServer.send(connection, data.data(), data.size(), wspp::frame::opcode::value::BINARY);
+                try {
+                    m_socketServer.send(connection, data.data(), data.size(), wspp::frame::opcode::value::BINARY);
+                }
+                catch (std::exception const& e) {
+                    // error handling
+                    continue;
+                }
             }
         }
 
