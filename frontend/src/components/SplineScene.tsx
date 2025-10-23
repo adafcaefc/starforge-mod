@@ -9,6 +9,33 @@ import dynamic from "next/dynamic";
 
 const ObjectModelsEditor = dynamic(() => import("./ObjectModelsEditor"), { ssr: false });
 
+// Global model cache to avoid loading the same model multiple times
+const modelCache = new Map<string, Promise<THREE.Group>>();
+
+function loadModel(modelPath: string): Promise<THREE.Group> {
+  if (modelCache.has(modelPath)) {
+    return modelCache.get(modelPath)!;
+  }
+
+  const loader = new GLTFLoader();
+  const promise = new Promise<THREE.Group>((resolve, reject) => {
+    loader.load(
+      modelPath,
+      (gltf) => {
+        resolve(gltf.scene);
+      },
+      undefined,
+      (error) => {
+        console.error(`Failed to load ${modelPath}:`, error);
+        reject(error);
+      }
+    );
+  });
+
+  modelCache.set(modelPath, promise);
+  return promise;
+}
+
 // Cubic Bezier curve implementation matching the C++ Curve class
 class CubicBezierCurve {
   p1: THREE.Vector3;
@@ -324,7 +351,6 @@ function GameObject({
   // Select model based on objectModels data
   useEffect(() => {
     const objectModelData = objectModelsDataRef.current[objectId.toString()];
-    console.log("ObjectModelData for objectId", objectId, ":", objectModelData);
     if (objectModelData && objectModelData.modelTextures.length > 0) {
       // If multiple models, select one at random based on nativePtr
       const modelIndex = hash32(nativePtr) % objectModelData.modelTextures.length;
@@ -340,17 +366,17 @@ function GameObject({
     if (!selectedModel) return;
 
     const modelPath = `/models/objects/${selectedModel}`;
-    const loader = new GLTFLoader();
-    loader.load(
-      modelPath,
-      (gltf) => {
-        setScene(gltf.scene);
-      },
-      undefined,
-      (error) => {
+    
+    // Use cached loader and clone the model
+    loadModel(modelPath)
+      .then((originalScene) => {
+        // Clone the scene for this instance
+        const clonedScene = originalScene.clone(true);
+        setScene(clonedScene);
+      })
+      .catch((error) => {
         console.error(`Failed to load ${modelPath}:`, error);
-      }
-    );
+      });
   }, [selectedModel]);
 
   useFrame((state) => {
@@ -627,6 +653,10 @@ function UFOModel({
       const playerY = playerStateRef.current.p1y;
       const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
 
+      // Calculate X-scale based on level length
+      const defaultLevelLength = 3000;
+      const xScale = effectiveLevelLength / defaultLevelLength;
+
       // Update length scale factor to ensure spline is proportional to level length
       const splineLength = spline.length(100);
       lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
@@ -643,16 +673,19 @@ function UFOModel({
       const tangent = spline.tangent(paramData.t);
       const normal = spline.normal(paramData.t);
 
+      // Apply X-scale to position
+      const scaledPosition = new THREE.Vector3(position.x * xScale, position.y, position.z);
+
       // Add player Y offset (scaled down to match scene scale)
       const yOffset = playerY / 100;
 
       // Position UFO along spline with Y offset
-      modelRef.current.position.copy(position);
+      modelRef.current.position.copy(scaledPosition);
       modelRef.current.position.y += yOffset;
 
       // Orient UFO along tangent
       const up = normal;
-      const lookAtTarget = position.clone().add(tangent);
+      const lookAtTarget = scaledPosition.clone().add(tangent);
       modelRef.current.lookAt(lookAtTarget);
       modelRef.current.up.copy(up);
 
@@ -670,27 +703,52 @@ function UFOModel({
 function SplineVisualization({ 
   splineRef,
   selectedPointRef,
-  isDraggingPointRef
+  isDraggingPointRef,
+  playerStateRef,
 }: { 
   splineRef: React.MutableRefObject<Spline>;
   selectedPointRef: React.MutableRefObject<number | null>;
   isDraggingPointRef: React.MutableRefObject<boolean>;
+  playerStateRef: React.MutableRefObject<{
+    p1x: number;
+    p1y: number;
+    levelLength: number;
+  }>;
 }) {
   const lineRef = useRef<THREE.Line>(null);
   const controlPointsRef = useRef<THREE.Group>(null);
+  const baseSplineLengthRef = useRef<number>(0);
+
+  // Calculate base spline length once
+  useEffect(() => {
+    const spline = splineRef.current;
+    if (spline.segments.length > 0 && baseSplineLengthRef.current === 0) {
+      // Calculate the base X-distance (not arc length) from first point to last point
+      const firstPoint = spline.segments[0].p1;
+      const lastPoint = spline.segments[spline.segments.length - 1].p2;
+      baseSplineLengthRef.current = Math.abs(lastPoint.x - firstPoint.x);
+    }
+  }, [splineRef]);
 
   useFrame(() => {
     const spline = splineRef.current;
     if (!spline || spline.segments.length === 0) return;
 
-    // Update spline line
+    // Calculate X-scale based on level length
+    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+    const defaultLevelLength = 3000;
+    const xScale = effectiveLevelLength / defaultLevelLength;
+
+    // Update spline line with scaling
     if (lineRef.current) {
       const points: THREE.Vector3[] = [];
       const steps = 100;
       const maxT = spline.segments.length;
       for (let i = 0; i <= steps; i++) {
         const t = (i / steps) * maxT;
-        points.push(spline.get(t));
+        const point = spline.get(t);
+        // Scale X coordinate based on level length
+        points.push(new THREE.Vector3(point.x * xScale, point.y, point.z));
       }
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       lineRef.current.geometry.dispose();
@@ -706,45 +764,45 @@ function SplineVisualization({
 
       // Add endpoint and handle spheres
       for (const segment of spline.segments) {
-        // P1 (red)
+        // P1 (red) - scaled
         const p1Mesh = new THREE.Mesh(
           new THREE.SphereGeometry(0.15, 16, 16),
           new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.3 })
         );
-        p1Mesh.position.copy(segment.p1);
+        p1Mesh.position.set(segment.p1.x * xScale, segment.p1.y, segment.p1.z);
         p1Mesh.userData.isControlPoint = true;
         p1Mesh.userData.pointIndex = controlPointsRef.current.children.length;
         controlPointsRef.current.add(p1Mesh);
 
-        // M1 (green)
+        // M1 (green) - scaled
         const m1Mesh = new THREE.Mesh(
           new THREE.SphereGeometry(0.1, 16, 16),
           new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.3 })
         );
-        m1Mesh.position.copy(segment.m1);
+        m1Mesh.position.set(segment.m1.x * xScale, segment.m1.y, segment.m1.z);
         m1Mesh.userData.isControlPoint = true;
         m1Mesh.userData.pointIndex = controlPointsRef.current.children.length;
         controlPointsRef.current.add(m1Mesh);
 
-        // M2 (green)
+        // M2 (green) - scaled
         const m2Mesh = new THREE.Mesh(
           new THREE.SphereGeometry(0.1, 16, 16),
           new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.3 })
         );
-        m2Mesh.position.copy(segment.m2);
+        m2Mesh.position.set(segment.m2.x * xScale, segment.m2.y, segment.m2.z);
         m2Mesh.userData.isControlPoint = true;
         m2Mesh.userData.pointIndex = controlPointsRef.current.children.length;
         controlPointsRef.current.add(m2Mesh);
       }
 
-      // P2 of last segment (red)
+      // P2 of last segment (red) - scaled
       if (spline.segments.length > 0) {
         const lastSegment = spline.segments[spline.segments.length - 1];
         const p2Mesh = new THREE.Mesh(
           new THREE.SphereGeometry(0.15, 16, 16),
           new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.3 })
         );
-        p2Mesh.position.copy(lastSegment.p2);
+        p2Mesh.position.set(lastSegment.p2.x * xScale, lastSegment.p2.y, lastSegment.p2.z);
         p2Mesh.userData.isControlPoint = true;
         p2Mesh.userData.pointIndex = controlPointsRef.current.children.length;
         controlPointsRef.current.add(p2Mesh);
@@ -778,6 +836,7 @@ function SplinePointDragger({
   dragPlaneRef,
   raycasterRef,
   mouseRef,
+  playerStateRef,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   selectedPointRef: React.MutableRefObject<number | null>;
@@ -785,6 +844,11 @@ function SplinePointDragger({
   dragPlaneRef: React.MutableRefObject<THREE.Plane | null>;
   raycasterRef: React.MutableRefObject<THREE.Raycaster>;
   mouseRef: React.MutableRefObject<THREE.Vector2>;
+  playerStateRef: React.MutableRefObject<{
+    p1x: number;
+    p1y: number;
+    levelLength: number;
+  }>;
 }) {
   const { camera, scene, gl } = useThree();
 
@@ -839,8 +903,20 @@ function SplinePointDragger({
       raycasterRef.current.ray.intersectPlane(dragPlaneRef.current, intersectPoint);
 
       if (intersectPoint) {
-        // Update spline control point
-        splineRef.current.editPointSymmetricCenterFix(selectedPointRef.current, intersectPoint);
+        // Calculate X-scale based on level length
+        const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+        const defaultLevelLength = 3000;
+        const xScale = effectiveLevelLength / defaultLevelLength;
+
+        // Un-scale the X coordinate to get the actual spline coordinate
+        const unscaledPoint = new THREE.Vector3(
+          intersectPoint.x / xScale,
+          intersectPoint.y,
+          intersectPoint.z
+        );
+
+        // Update spline control point with unscaled coordinates
+        splineRef.current.editPointSymmetricCenterFix(selectedPointRef.current, unscaledPoint);
         splineRef.current.updateParameterList(10000);
       }
     }
@@ -918,6 +994,10 @@ function GameObjectsField({
 
     const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
     
+    // Calculate X-scale based on level length
+    const defaultLevelLength = 3000;
+    const xScale = effectiveLevelLength / defaultLevelLength;
+    
     // Calculate progress (0 to 1) - same as UFO movement
     const progress = Math.min(1, Math.max(0, gameX / effectiveLevelLength));
     
@@ -929,10 +1009,13 @@ function GameObjectsField({
     const paramData = spline.findClosestByLength(targetLength);
     const position = spline.get(paramData.t);
 
+    // Apply X-scale to position
+    const scaledX = position.x * xScale;
+
     // Add Y offset (scaled to match scene)
     const yOffset = gameY / 100;
 
-    return [position.x, position.y + yOffset, position.z];
+    return [scaledX, position.y + yOffset, position.z];
   };
 
   return (
@@ -984,10 +1067,18 @@ function AnimatedCamera({
     const playerX = playerStateRef.current.p1x;
     const playerY = playerStateRef.current.p1y;
     const lengthScaleFactor = lengthScaleFactorRef.current;
+    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+
+    // Calculate X-scale based on level length
+    const defaultLevelLength = 3000;
+    const xScale = effectiveLevelLength / defaultLevelLength;
 
     const scaledLength = playerX * lengthScaleFactor;
     const paramData = spline.findClosestByLength(scaledLength);
     const ufoPosition = spline.get(paramData.t);
+    
+    // Apply X-scale to UFO position
+    const scaledUfoX = ufoPosition.x * xScale;
     const yOffset = playerY / 100;
 
     // Camera controls
@@ -1003,7 +1094,7 @@ function AnimatedCamera({
     const z = distance * Math.sin(phi) * Math.cos(theta);
 
     // Camera position relative to UFO
-    const targetX = ufoPosition.x + x + panX;
+    const targetX = scaledUfoX + x + panX;
     const targetY = ufoPosition.y + yOffset + y + panY;
     const targetZ = ufoPosition.z + z;
 
@@ -1015,7 +1106,7 @@ function AnimatedCamera({
     // Look at UFO
     const controls = state.controls as any;
     if (controls && controls.target) {
-      const lookAtTarget = new THREE.Vector3(ufoPosition.x + panX, ufoPosition.y + yOffset + panY, ufoPosition.z);
+      const lookAtTarget = new THREE.Vector3(scaledUfoX + panX, ufoPosition.y + yOffset + panY, ufoPosition.z);
       controls.target.lerp(lookAtTarget, lerpFactor);
       controls.update();
     }
@@ -1188,6 +1279,7 @@ function Scene({
         splineRef={splineRef} 
         selectedPointRef={selectedPointRef}
         isDraggingPointRef={isDraggingPointRef}
+        playerStateRef={playerStateRef}
       />
       <SplinePointDragger
         splineRef={splineRef}
@@ -1196,6 +1288,7 @@ function Scene({
         dragPlaneRef={dragPlaneRef}
         raycasterRef={raycasterRef}
         mouseRef={mouseRef}
+        playerStateRef={playerStateRef}
       />
       <UFOModel
         splineRef={splineRef}
