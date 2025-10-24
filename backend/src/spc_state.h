@@ -73,6 +73,8 @@ namespace spc {
         };
 
         struct LevelData : public SendableState {
+            void loadFromLevel(GJBaseGameLayer* layer);
+            void reset();
             uint32_t m_levelID = 0;
             float m_levelLength = 0.0f;
             std::vector<GameObject> m_gameObjects;
@@ -98,6 +100,9 @@ namespace spc {
         GameState m_gameState;
         LevelData m_levelData;
         LiveLevelData m_liveLevelData;
+
+        bool m_levelStateUpdate = false;
+        bool m_levelStateReset = false;
 
         std::string getGameStateMessage();
         std::string getLevelDataMessage();

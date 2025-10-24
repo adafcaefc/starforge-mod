@@ -593,23 +593,59 @@ function UFOModel({
                   const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
                   lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
                 }
-                // Update game objects (only sent once during level_reset)
+                
+                // Always update game objects whenever level_data is received
+                // If the new level data has an empty game objects array, clear all objects
                 if (stateData.m_gameObjects && Array.isArray(stateData.m_gameObjects)) {
-                  gameObjectsRef.current = stateData.m_gameObjects.map((obj: any) => ({
-                    x: obj.m_x || 0,
-                    y: obj.m_y || 0,
-                    rotation: obj.m_rotation || 0,
-                    scaleX: obj.m_scaleX || 1,
-                    scaleY: obj.m_scaleY || 1,
-                    opacity: obj.m_opacity || 1,
-                    visible: obj.m_visible !== false,
-                    objectId: obj.m_objectId || -1,
-                    nativePtr: obj.m_nativePtr || 0
-                  }));
+                  if (stateData.m_gameObjects.length === 0) {
+                    // Clear and dispose all game objects when empty array is sent
+                    gameObjectsRef.current = [];
+                    console.log("Level data with empty game objects - cleared and disposed all objects");
+                  } else {
+                    gameObjectsRef.current = stateData.m_gameObjects.map((obj: any) => ({
+                      x: obj.m_x || 0,
+                      y: obj.m_y || 0,
+                      rotation: obj.m_rotation || 0,
+                      scaleX: obj.m_scaleX || 1,
+                      scaleY: obj.m_scaleY || 1,
+                      opacity: obj.m_opacity || 1,
+                      visible: obj.m_visible !== false,
+                      objectId: obj.m_objectId || -1,
+                      nativePtr: obj.m_nativePtr || 0
+                    }));
+                  }
                 }
+                
+                // Load spline data automatically when received from level
+                if (stateData.m_levelData && stateData.m_levelData.spline && stateData.m_levelData.spline.segments) {
+                  const spline = splineRef.current;
+                  spline.segments = [];
+                  
+                  for (const segmentData of stateData.m_levelData.spline.segments) {
+                    const segment = new CubicBezierCurve(
+                      new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
+                      new THREE.Vector3(segmentData.m1.x, segmentData.m1.y, segmentData.m1.z),
+                      new THREE.Vector3(segmentData.m2.x, segmentData.m2.y, segmentData.m2.z),
+                      new THREE.Vector3(segmentData.p2.x, segmentData.p2.y, segmentData.p2.z)
+                    );
+                    segment.p1NormalAngle = segmentData.p1NormalAngle || 0;
+                    segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
+                    spline.addSegment(segment);
+                  }
+                  
+                  spline.updateParameterList(10000);
+                  
+                  // Recalculate length scale factor
+                  const splineLength = spline.length(1000);
+                  const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+                  lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
+                  
+                  console.log('Spline loaded automatically from level data');
+                }
+                
                 // Update object models data
-                if (stateData.m_objectModels) {
-                  objectModelsDataRef.current = stateData.m_objectModels;
+                if (stateData.m_levelData && stateData.m_levelData.objectModels) {
+                  objectModelsDataRef.current = stateData.m_levelData.objectModels;
                 }
               } else if (stateName === "live_level_data") {
                 // Update live player data
@@ -624,14 +660,15 @@ function UFOModel({
               const eventName = parsedData.name;
               const eventData = parsedData.data;
 
-              if (eventName === "level_exit") {
-                // Clear all game objects when exiting level
-                gameObjectsRef.current = [];
-                console.log("Level exit - cleared all game objects");
-              } else if (eventName === "level_reset") {
-                // level_reset event - objects are loaded via level_data message
-                console.log("Level reset event received");
-              }
+              // Print all received events to console
+              console.log("WebSocket event received:", {
+                name: eventName,
+                data: eventData
+              });
+
+              // Note: level_exit event no longer clears objects
+              // Objects are only cleared when level_data state is sent with empty m_gameObjects array
+              // This ensures proper disposal through React's cleanup mechanisms
             }
           } catch (e) {
             // Ignore parsing errors
@@ -1208,7 +1245,6 @@ function SplineEditorControls({
   onRemoveSegment,
   onSaveSpline,
   onLoadSpline,
-  onLoadFromLevel,
   onSaveToLevel,
   onOpenObjectModelsEditor,
   splineRef,
@@ -1217,7 +1253,6 @@ function SplineEditorControls({
   onRemoveSegment: () => void;
   onSaveSpline: () => void;
   onLoadSpline: () => void;
-  onLoadFromLevel: () => void;
   onSaveToLevel: () => void;
   onOpenObjectModelsEditor: () => void;
   splineRef: React.MutableRefObject<Spline>;
@@ -1242,13 +1277,13 @@ function SplineEditorControls({
         <div className="flex gap-2">
           <button
             onClick={onAddSegment}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium text-sm transition-colors"
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
           >
             + Add Segment
           </button>
           <button
             onClick={onRemoveSegment}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium text-sm transition-colors"
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
             disabled={segmentCount <= 1}
           >
             - Remove Segment
@@ -1257,38 +1292,30 @@ function SplineEditorControls({
         <div className="flex gap-2">
           <button
             onClick={onSaveSpline}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-sm transition-colors"
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
           >
-            Save Spline
+            Save to JSON
           </button>
           <button
             onClick={onLoadSpline}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-medium text-sm transition-colors"
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
           >
-            Load Spline
+            Load from JSON
           </button>
         </div>
         <div className="border-t border-gray-600 pt-2 mt-1">
           <div className="text-xs text-gray-400 mb-2">Level Sync</div>
-          <div className="flex gap-2">
-            <button
-              onClick={onLoadFromLevel}
-              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded font-medium text-sm transition-colors flex-1"
-            >
-              Load from Level
-            </button>
-            <button
-              onClick={onSaveToLevel}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded font-medium text-sm transition-colors flex-1"
-            >
-              Save to Level
-            </button>
-          </div>
+          <button
+            onClick={onSaveToLevel}
+            className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+          >
+            Save to Level
+          </button>
         </div>
         <div className="border-t border-gray-600 pt-2 mt-1">
           <button
             onClick={onOpenObjectModelsEditor}
-            className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-medium text-sm transition-colors"
+            className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
           >
             Object Models Editor
           </button>
@@ -1465,31 +1492,47 @@ export default function SplineScene() {
   const raycasterRef = useRef(new THREE.Raycaster());
   const mouseRef = useRef(new THREE.Vector2());
 
-  // Initialize default spline
+  // Initialize default spline only if no spline data is loaded from level
   useEffect(() => {
-    const spline = splineRef.current;
-    // Create initial spline with 2 segments
-    spline.addSegment(
-      new CubicBezierCurve(
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(2, 1, -5),
-        new THREE.Vector3(4, -1, -10),
-        new THREE.Vector3(6, 0, -15)
-      )
-    );
-    spline.addSegment(
-      new CubicBezierCurve(
-        new THREE.Vector3(6, 0, -15),
-        new THREE.Vector3(8, 1, -20),
-        new THREE.Vector3(10, -1, -25),
-        new THREE.Vector3(12, 0, -30)
-      )
-    );
-    spline.updateParameterList(10000);
+    // Wait a bit for websocket to connect and potentially load level data
+    const timeout = setTimeout(() => {
+      const spline = splineRef.current;
+      // Only add default segments if spline is still empty (no data from level)
+      if (spline.segments.length === 0) {
+        // Create initial spline from provided default data (from spline.json)
+        spline.addSegment(
+          new CubicBezierCurve(
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(3.3476727857354316, -1.2823477290527574, -0.7704321352445345),
+            new THREE.Vector3(12.774514879635667, 5.180145083895724, -15.504650728516243),
+            new THREE.Vector3(6, 0, -15)
+          )
+        );
+        spline.addSegment(
+          new CubicBezierCurve(
+            new THREE.Vector3(6, 0, -15),
+            new THREE.Vector3(-0.7745148796356671, -5.180145083895724, -14.495349271483757),
+            new THREE.Vector3(1.1788881208983568, 3.9334638035720317, -19.888953705547856),
+            new THREE.Vector3(5.295503778635329, 4.223476934215563, -22.2714620605434)
+          )
+        );
+        spline.addSegment(
+          new CubicBezierCurve(
+            new THREE.Vector3(5.295503778635329, 4.223476934215563, -22.2714620605434),
+            new THREE.Vector3(9.4121194363723, 4.513490064859095, -24.653970415538943),
+            new THREE.Vector3(9.930131815154375, 13.529333209771652, -31.64966203613991),
+            new THREE.Vector3(3.155616935518708, 8.349188125875928, -31.14501130762367)
+          )
+        );
+        spline.updateParameterList(10000);
 
-    // Calculate length scale factor with default level length of 3000
-    const splineLength = spline.length(1000);
-    lengthScaleFactorRef.current = splineLength / 3000;
+        // Calculate length scale factor with default level length of 3000
+        const splineLength = spline.length(1000);
+        lengthScaleFactorRef.current = splineLength / 3000;
+      }
+    }, 1000); // Wait 1 second for websocket data
+
+    return () => clearTimeout(timeout);
   }, []);
 
   const handleAddSegment = () => {
@@ -1514,7 +1557,7 @@ export default function SplineScene() {
 
   const handleSaveSpline = () => {
     const spline = splineRef.current;
-    const splineData = {
+    const levelData = {
       segments: spline.segments.map(segment => ({
         p1: { x: segment.p1.x, y: segment.p1.y, z: segment.p1.z },
         m1: { x: segment.m1.x, y: segment.m1.y, z: segment.m1.z },
@@ -1523,18 +1566,20 @@ export default function SplineScene() {
         p1NormalAngle: segment.p1NormalAngle,
         p2NormalAngle: segment.p2NormalAngle,
       })),
+      objectModels: objectModelsDataRef.current,
     };
     
-    const json = JSON.stringify(splineData, null, 2);
+    const json = JSON.stringify(levelData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'spline.json';
+    a.download = 'StarforgeLevelData.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    showToast('Level data saved to StarforgeLevelData.json', 'success');
   };
 
   const handleLoadSpline = () => {
@@ -1549,23 +1594,30 @@ export default function SplineScene() {
       reader.onload = (event) => {
         try {
           const json = event.target?.result as string;
-          const splineData = JSON.parse(json);
+          const levelData = JSON.parse(json);
           
           // Clear current spline
           const spline = splineRef.current;
           spline.segments = [];
           
           // Load segments from JSON
-          for (const segmentData of splineData.segments) {
-            const segment = new CubicBezierCurve(
-              new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
-              new THREE.Vector3(segmentData.m1.x, segmentData.m1.y, segmentData.m1.z),
-              new THREE.Vector3(segmentData.m2.x, segmentData.m2.y, segmentData.m2.z),
-              new THREE.Vector3(segmentData.p2.x, segmentData.p2.y, segmentData.p2.z)
-            );
-            segment.p1NormalAngle = segmentData.p1NormalAngle || 0;
-            segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
-            spline.addSegment(segment);
+          if (levelData.segments && Array.isArray(levelData.segments)) {
+            for (const segmentData of levelData.segments) {
+              const segment = new CubicBezierCurve(
+                new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
+                new THREE.Vector3(segmentData.m1.x, segmentData.m1.y, segmentData.m1.z),
+                new THREE.Vector3(segmentData.m2.x, segmentData.m2.y, segmentData.m2.z),
+                new THREE.Vector3(segmentData.p2.x, segmentData.p2.y, segmentData.p2.z)
+              );
+              segment.p1NormalAngle = segmentData.p1NormalAngle || 0;
+              segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
+              spline.addSegment(segment);
+            }
+          }
+          
+          // Load object models if present
+          if (levelData.objectModels) {
+            objectModelsDataRef.current = levelData.objectModels;
           }
           
           spline.updateParameterList(10000);
@@ -1575,70 +1627,16 @@ export default function SplineScene() {
           const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
           lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
           
-          console.log('Spline loaded successfully');
+          showToast('Level data loaded successfully from JSON!', 'success');
+          console.log('Level data loaded from JSON:', levelData);
         } catch (error) {
-          console.error('Failed to load spline:', error);
-          showToast('Failed to load spline file. Please check the file format.', 'error');
+          console.error('Failed to load level data:', error);
+          showToast('Failed to load level data file. Please check the file format.', 'error');
         }
       };
       reader.readAsText(file);
     };
     input.click();
-  };
-
-  const handleLoadFromLevel = async () => {
-    try {
-      const response = await fetch('http://localhost:6673/api/leveldata/get', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to load level data');
-      }
-
-      const levelData = await response.json();
-      
-      // Clear current spline
-      const spline = splineRef.current;
-      spline.segments = [];
-      
-      // Load segments from level data
-      if (levelData.spline && levelData.spline.segments) {
-        for (const segmentData of levelData.spline.segments) {
-          const segment = new CubicBezierCurve(
-            new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
-            new THREE.Vector3(segmentData.m1.x, segmentData.m1.y, segmentData.m1.z),
-            new THREE.Vector3(segmentData.m2.x, segmentData.m2.y, segmentData.m2.z),
-            new THREE.Vector3(segmentData.p2.x, segmentData.p2.y, segmentData.p2.z)
-          );
-          segment.p1NormalAngle = segmentData.p1NormalAngle || 0;
-          segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
-          spline.addSegment(segment);
-        }
-      }
-      
-      // Load object models if present
-      if (levelData.objectModels) {
-        objectModelsDataRef.current = levelData.objectModels;
-      }
-      
-      spline.updateParameterList(10000);
-      
-      // Recalculate length scale factor
-      const splineLength = spline.length(1000);
-      const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
-      lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
-      
-      showToast('Spline and object models loaded from level successfully!', 'success');
-      console.log('Spline loaded from level:', levelData);
-    } catch (error) {
-      console.error('Failed to load from level:', error);
-      showToast(`Failed to load from level: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
-    }
   };
 
   const handleSaveToLevel = async () => {
@@ -1790,7 +1788,6 @@ export default function SplineScene() {
             onRemoveSegment={handleRemoveSegment}
             onSaveSpline={handleSaveSpline}
             onLoadSpline={handleLoadSpline}
-            onLoadFromLevel={handleLoadFromLevel}
             onSaveToLevel={handleSaveToLevel}
             onOpenObjectModelsEditor={() => setShowObjectModelsEditor(true)}
             splineRef={splineRef}
@@ -1821,6 +1818,7 @@ export default function SplineScene() {
       {showObjectModelsEditor && (
         <ObjectModelsEditor 
           objectModelsDataRef={objectModelsDataRef}
+          splineRef={splineRef}
           onClose={() => setShowObjectModelsEditor(false)} 
         />
       )}

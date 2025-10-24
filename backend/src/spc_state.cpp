@@ -64,4 +64,44 @@ namespace spc {
         j["data"] = eventData;
         return j.dump();
     }
+
+    void State::LevelData::loadFromLevel(GJBaseGameLayer* layer) {
+        reset();
+        m_hasLevelData = ldata::hasLevelData(layer);
+        if (m_hasLevelData) {
+            // load spline data
+            m_levelData.reset();
+            m_levelData = ldata::getLevelData(layer);
+
+            // load level ID and length
+            m_levelLength = layer->m_levelLength;
+            if (auto level = layer->m_level) {
+                m_levelID = level->m_levelID;
+            }
+
+            // load game objects
+            for (auto objx : CCArrayExt<::GameObject*>(layer->m_objects)) {
+                if (objx == layer->m_anticheatSpike) { continue; }
+                State::GameObject obj;
+                obj.m_x = objx->getPositionX();
+                obj.m_y = objx->getPositionY();
+                obj.m_rotation = objx->getRotation();
+                obj.m_scaleX = objx->getScaleX();
+                obj.m_scaleY = objx->getScaleY();
+                obj.m_opacity = static_cast<float>(objx->getOpacity()) / 255.0f;
+                obj.m_visible = objx->isVisible();
+                obj.m_nativePtr = reinterpret_cast<uintptr_t>(objx);
+                obj.m_objectId = objx->m_objectID;
+                m_gameObjects.push_back(obj);
+            }
+        }
+    }
+
+    void State::LevelData::reset() {
+        m_levelID = 0;
+        m_levelLength = 0.0f;
+        m_gameObjects.clear();
+        m_levelData.reset();
+        m_hasLevelData = false;
+    }
 }

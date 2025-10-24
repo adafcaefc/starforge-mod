@@ -100,6 +100,7 @@ namespace spc {
 }
 
 class $modify(cocos2d::CCScheduler) {
+    // https://github.com/undefined06855/gd-render-texture
     void spcCaptureFrame() {
         uint16_t width = 440u;
         uint16_t height = 240u;
@@ -117,6 +118,30 @@ class $modify(cocos2d::CCScheduler) {
         spc::loadState();
     }
 
+    void spcSendLevelUpdate() {
+        auto state = spc::State::get();
+        GJBaseGameLayer* layer = nullptr;
+        if (PlayLayer::get())
+            layer = PlayLayer::get();
+        else if (LevelEditorLayer::get())
+            layer = LevelEditorLayer::get();
+        if (state->m_levelStateUpdate) {
+            if (layer)
+                state->m_levelData.loadFromLevel(layer);
+            else
+                state->m_levelData.reset();
+            if (state->m_levelStateReset) {
+                state->m_levelData.reset();
+                state->server->send(state->getEventMessage("level_data_reset"));
+                state->m_levelStateReset = false;
+            }
+            state->server->send(state->getLevelDataMessage());
+            state->server->send(state->getEventMessage("level_data_update"));
+            state->m_levelStateUpdate = false;
+        }
+    }
+
+
     void update(float dt) {
         static bool init = false;
 
@@ -127,12 +152,12 @@ class $modify(cocos2d::CCScheduler) {
 
         cocos2d::CCScheduler::update(dt);
 
-        // https://github.com/undefined06855/gd-render-texture
         static std::chrono::steady_clock::time_point lastTime = std::chrono::steady_clock::now();
         auto currentTime = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastTime).count();
         if (elapsed >= 33) {
             spcCaptureFrame();
+            spcSendLevelUpdate();
             lastTime = currentTime;
         }
     }

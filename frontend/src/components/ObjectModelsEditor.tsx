@@ -20,6 +20,7 @@ interface ObjectModelsMap {
 
 interface ObjectModelsEditorProps {
   objectModelsDataRef: React.MutableRefObject<ObjectModelsMap>;
+  splineRef: React.MutableRefObject<any>; // Spline ref from parent
   onClose: () => void;
 }
 
@@ -29,7 +30,7 @@ interface Toast {
   type: "success" | "error" | "info";
 }
 
-export default function ObjectModelsEditor({ objectModelsDataRef, onClose }: ObjectModelsEditorProps) {
+export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onClose }: ObjectModelsEditorProps) {
   const [objectModels, setObjectModels] = useState<ObjectModelsMap>({});
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [availableGlbFiles, setAvailableGlbFiles] = useState<string[]>([]);
@@ -138,11 +139,48 @@ export default function ObjectModelsEditor({ objectModelsDataRef, onClose }: Obj
     });
   };
 
-  // Save object models to the ref
-  const saveObjectModels = () => {
+  // Save object models to the ref and to level
+  const saveObjectModels = async () => {
     // Update the ref with current state
     objectModelsDataRef.current = { ...objectModels };
-    showToast("Object models updated! Click 'Save to Level' in the spline editor to persist.", "success");
+    
+    // Also save to level via API
+    try {
+      const spline = splineRef.current;
+      const levelData = {
+        spline: {
+          segments: spline.segments.map((segment: any) => ({
+            p1: { x: segment.p1.x, y: segment.p1.y, z: segment.p1.z },
+            m1: { x: segment.m1.x, y: segment.m1.y, z: segment.m1.z },
+            m2: { x: segment.m2.x, y: segment.m2.y, z: segment.m2.z },
+            p2: { x: segment.p2.x, y: segment.p2.y, z: segment.p2.z },
+            p1NormalAngle: segment.p1NormalAngle,
+            p2NormalAngle: segment.p2NormalAngle,
+          })),
+        },
+        objectModels: objectModels,
+      };
+
+      const response = await fetch('http://localhost:6673/api/leveldata/load', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(levelData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save level data');
+      }
+
+      showToast('Object models saved to level successfully!', 'success');
+      console.log('Object models saved to level');
+    } catch (error) {
+      console.error('Failed to save to level:', error);
+      showToast(`Failed to save to level: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+    }
+    
     onClose();
   };
 
