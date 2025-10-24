@@ -337,6 +337,7 @@ function GameObject({
   objectId,
   nativePtr,
   objectModelsDataRef,
+  objectModelsVersion,
 }: {
   position: [number, number, number];
   scale: [number, number];
@@ -351,6 +352,7 @@ function GameObject({
       shouldSpin?: boolean;
     };
   }>;
+  objectModelsVersion: number;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<THREE.Group | null>(null);
@@ -387,7 +389,7 @@ function GameObject({
       // No model data - don't load anything
       setSelectedModel(null);
     }
-  }, [objectId, nativePtr, objectModelsDataRef]);
+  }, [objectId, nativePtr, objectModelsDataRef, objectModelsVersion]);
 
   useEffect(() => {
     if (!selectedModel) {
@@ -1055,6 +1057,7 @@ function GameObjectsField({
   lengthScaleFactorRef,
   playerStateRef,
   objectModelsDataRef,
+  objectModelsVersion,
 }: {
   gameObjectsRef: React.MutableRefObject<
     Array<{
@@ -1083,6 +1086,7 @@ function GameObjectsField({
       modelTextures: string[];
     };
   }>;
+  objectModelsVersion: number;
 }) {
   const [objects, setObjects] = useState<
     Array<{
@@ -1098,16 +1102,19 @@ function GameObjectsField({
     }>
   >([]);
 
-  // Optimized polling - reduced frequency to minimize performance impact
-  useEffect(() => {
-    const interval = setInterval(() => {
+  const lastUpdateRef = useRef<number>(0);
+
+  // Use useFrame to update objects - works even when tab is not active
+  useFrame(() => {
+    const now = Date.now();
+    // Update at most every 100ms to avoid excessive re-renders
+    if (now - lastUpdateRef.current > 100) {
       const newObjects = gameObjectsRef.current;
-      if (newObjects.length > 0) {
-        setObjects([...newObjects]);
-      }
-    }, 250); // Reduced from 100ms to 250ms for better performance
-    return () => clearInterval(interval);
-  }, [gameObjectsRef]);
+      // Always update, even if empty (to clear objects)
+      setObjects([...newObjects]);
+      lastUpdateRef.current = now;
+    }
+  });
 
   const mapToSplineCoords = (
     gameX: number,
@@ -1155,6 +1162,7 @@ function GameObjectsField({
             objectId={obj.objectId}
             nativePtr={obj.nativePtr}
             objectModelsDataRef={objectModelsDataRef}
+            objectModelsVersion={objectModelsVersion}
           />
         );
       })}
@@ -1342,6 +1350,7 @@ function Scene({
   raycasterRef,
   mouseRef,
   objectModelsDataRef,
+  objectModelsVersion,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -1382,6 +1391,7 @@ function Scene({
       modelTextures: string[];
     };
   }>;
+  objectModelsVersion: number;
 }) {
   return (
     <>
@@ -1418,6 +1428,7 @@ function Scene({
         lengthScaleFactorRef={lengthScaleFactorRef}
         playerStateRef={playerStateRef}
         objectModelsDataRef={objectModelsDataRef}
+        objectModelsVersion={objectModelsVersion}
       />
       <AnimatedCamera
         splineRef={splineRef}
@@ -1436,6 +1447,9 @@ export default function SplineScene() {
   const [showObjectModelsEditor, setShowObjectModelsEditor] = useState(false);
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: "success" | "error" | "info" }>>([]);
   const toastIdCounter = useRef(0);
+  
+  // Track object models version to force re-render when models change
+  const [objectModelsVersion, setObjectModelsVersion] = useState(0);
   
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     const id = toastIdCounter.current++;
@@ -1806,6 +1820,7 @@ export default function SplineScene() {
             raycasterRef={raycasterRef}
             mouseRef={mouseRef}
             objectModelsDataRef={objectModelsDataRef}
+            objectModelsVersion={objectModelsVersion}
           />
           <OrbitControls
             enableZoom={false}
@@ -1819,7 +1834,11 @@ export default function SplineScene() {
         <ObjectModelsEditor 
           objectModelsDataRef={objectModelsDataRef}
           splineRef={splineRef}
-          onClose={() => setShowObjectModelsEditor(false)} 
+          onClose={() => setShowObjectModelsEditor(false)}
+          onSave={() => {
+            // Increment version to force GameObject components to re-render
+            setObjectModelsVersion(prev => prev + 1);
+          }}
         />
       )}
       

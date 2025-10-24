@@ -22,6 +22,7 @@ interface ObjectModelsEditorProps {
   objectModelsDataRef: React.MutableRefObject<ObjectModelsMap>;
   splineRef: React.MutableRefObject<any>; // Spline ref from parent
   onClose: () => void;
+  onSave?: () => void;
 }
 
 interface Toast {
@@ -30,7 +31,7 @@ interface Toast {
   type: "success" | "error" | "info";
 }
 
-export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onClose }: ObjectModelsEditorProps) {
+export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onClose, onSave }: ObjectModelsEditorProps) {
   const [objectModels, setObjectModels] = useState<ObjectModelsMap>({});
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [availableGlbFiles, setAvailableGlbFiles] = useState<string[]>([]);
@@ -179,6 +180,11 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     } catch (error) {
       console.error('Failed to save to level:', error);
       showToast(`Failed to save to level: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+    }
+    
+    // Call onSave callback if provided
+    if (onSave) {
+      onSave();
     }
     
     onClose();
