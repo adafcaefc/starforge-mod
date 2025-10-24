@@ -332,6 +332,8 @@ class Spline {
 // GameObject component - loads models based on objectModels data
 function GameObject({
   position,
+  tangent,
+  normal,
   scale,
   rotation,
   objectId,
@@ -340,6 +342,8 @@ function GameObject({
   objectModelsVersion,
 }: {
   position: [number, number, number];
+  tangent: THREE.Vector3;
+  normal: THREE.Vector3;
   scale: [number, number];
   rotation: number;
   objectId: number;
@@ -436,10 +440,17 @@ function GameObject({
         groupRef.current.rotation.y = time * rotationSpeedY;
         groupRef.current.rotation.z = time * rotationSpeedZ;
       } else {
-        // Keep rotation static
-        groupRef.current.rotation.x = 0;
-        groupRef.current.rotation.y = 0;
-        groupRef.current.rotation.z = 0;
+        // Orient along spline using tangent and normal vectors
+        const posVec = new THREE.Vector3(position[0], position[1], position[2]);
+        const up = normal;
+        const lookAtTarget = posVec.clone().add(tangent);
+        groupRef.current.lookAt(lookAtTarget);
+        groupRef.current.up.copy(up);
+        
+        // Apply the game object's rotation around the tangent axis
+        if (rotation !== 0) {
+          groupRef.current.rotateOnAxis(tangent.clone().normalize(), (rotation * Math.PI) / 180);
+        }
       }
 
       // Get scale from objectModels data if available
@@ -466,7 +477,6 @@ function GameObject({
       ref={groupRef}
       object={scene}
       position={position}
-      rotation={[0, (rotation * Math.PI) / 180, 0]}
     />
   );
 }
@@ -1119,9 +1129,15 @@ function GameObjectsField({
   const mapToSplineCoords = (
     gameX: number,
     gameY: number
-  ): [number, number, number] => {
+  ): { position: [number, number, number]; tangent: THREE.Vector3; normal: THREE.Vector3 } => {
     const spline = splineRef.current;
-    if (spline.segments.length === 0) return [0, 0, 0];
+    if (spline.segments.length === 0) {
+      return { 
+        position: [0, 0, 0], 
+        tangent: new THREE.Vector3(0, 0, 1), 
+        normal: new THREE.Vector3(0, 1, 0) 
+      };
+    }
 
     const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
     
@@ -1139,6 +1155,8 @@ function GameObjectsField({
     // Find position on spline
     const paramData = spline.findClosestByLength(targetLength);
     const position = spline.get(paramData.t);
+    const tangent = spline.tangent(paramData.t);
+    const normal = spline.normal(paramData.t);
 
     // Apply X-scale to position
     const scaledX = position.x * xScale;
@@ -1146,17 +1164,23 @@ function GameObjectsField({
     // Add Y offset (scaled to match scene)
     const yOffset = gameY / 100;
 
-    return [scaledX, position.y + yOffset, position.z];
+    return { 
+      position: [scaledX, position.y + yOffset, position.z],
+      tangent,
+      normal
+    };
   };
 
   return (
     <>
       {objects.map((obj, index) => {
-        const scenePos = mapToSplineCoords(obj.x, obj.y);
+        const splineData = mapToSplineCoords(obj.x, obj.y);
         return (
           <GameObject
             key={`${obj.objectId}-${index}`}
-            position={scenePos}
+            position={splineData.position}
+            tangent={splineData.tangent}
+            normal={splineData.normal}
             scale={[obj.scaleX, obj.scaleY]}
             rotation={obj.rotation}
             objectId={obj.objectId}
