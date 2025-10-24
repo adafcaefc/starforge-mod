@@ -97,11 +97,9 @@ namespace spc {
             break;
         }
     }
-}
 
-class $modify(cocos2d::CCScheduler) {
     // https://github.com/undefined06855/gd-render-texture
-    void spcCaptureFrame() {
+    static void spcCaptureFrame() {
         uint16_t width = 440u;
         uint16_t height = 240u;
 
@@ -111,14 +109,9 @@ class $modify(cocos2d::CCScheduler) {
 
         auto server = spc::State::get()->server;
         server->sendBinary(std::vector<uint8_t>(data.get(), data.get() + (width * height * 4)));
-
-        auto state = spc::State::get();
-        server->send(state->getGameStateMessage());
-
-        spc::loadState();
     }
 
-    void spcSendLevelUpdate() {
+    static void spcSendLevelUpdate() {
         auto state = spc::State::get();
         GJBaseGameLayer* layer = nullptr;
         if (PlayLayer::get())
@@ -141,6 +134,34 @@ class $modify(cocos2d::CCScheduler) {
         }
     }
 
+    static void spcSendGameState() {
+        auto state = spc::State::get();
+        state->server->send(state->getGameStateMessage());
+
+        spc::loadState();
+
+        // Send live level data for player position updates
+        state->server->send(state->getLiveLevelDataMessage());
+    }
+}
+
+
+
+class $modify(cocos2d::CCScheduler) {
+    template <auto Id, typename Duration, auto Interval, typename Func>
+    void doEvery(Func&& func) {
+        using Clock = std::chrono::steady_clock;
+        static auto lastTime = Clock::now();
+
+        auto currentTime = Clock::now();
+        auto elapsed = std::chrono::duration_cast<Duration>(currentTime - lastTime);
+
+        if (elapsed.count() >= Interval) {
+            std::invoke(std::forward<Func>(func));  // supports lambdas, std::function, etc.
+            lastTime = currentTime;
+        }
+    }
+
 
     void update(float dt) {
         static bool init = false;
@@ -152,13 +173,14 @@ class $modify(cocos2d::CCScheduler) {
 
         cocos2d::CCScheduler::update(dt);
 
-        static std::chrono::steady_clock::time_point lastTime = std::chrono::steady_clock::now();
-        auto currentTime = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastTime).count();
-        if (elapsed >= 33) {
-            spcCaptureFrame();
-            spcSendLevelUpdate();
-            lastTime = currentTime;
-        }
+        doEvery<__COUNTER__, std::chrono::milliseconds, 1>([] {
+            spc::spcSendGameState();
+            });
+
+
+        doEvery<__COUNTER__, std::chrono::milliseconds, 33>([] {
+            spc::spcCaptureFrame();
+            spc::spcSendLevelUpdate();
+            });
     }
 };

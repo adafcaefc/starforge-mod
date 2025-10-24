@@ -789,6 +789,9 @@ function UFOModel({
       const lookAtTarget = scaledPosition.clone().add(tangent);
       modelRef.current.lookAt(lookAtTarget);
       modelRef.current.up.copy(up);
+      
+      // Rotate 180 degrees around Y axis to face forward
+      modelRef.current.rotateY(Math.PI);
 
       // Add subtle floating motion
       const floatingY = Math.sin(time * 2) * 0.005;
