@@ -41,6 +41,11 @@ namespace spc::ldata
     {
 		Spline spline;
         std::unordered_map<int, ObjectModelData> objectModels;
+        void reset()
+        {
+            spline.segments.clear();
+            objectModels.clear();
+        }
     };
 
     NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Curve, p1, m1, p2, m2, p1NormalAngle, p2NormalAngle);

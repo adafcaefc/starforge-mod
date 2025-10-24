@@ -34,6 +34,11 @@ namespace spc {
             state->m_levelData.m_levelID = level->m_levelID;
         }
 
+        state->m_levelData.m_levelData.reset();
+        state->m_levelData.m_hasLevelData = ldata::hasLevelData(layer);
+        if (state->m_levelData.m_hasLevelData) {
+            state->m_levelData.m_levelData = ldata::getLevelData(layer);
+        }
     }
 }
 
@@ -48,9 +53,10 @@ class $modify(PlayLayer) {
         state->server->send(state->getLevelDataMessage());
         state->server->send(state->getEventMessage("level_reset"));
     }
-    void onExit() {
-        PlayLayer::onExit();
+    void onQuit() {
+        PlayLayer::onQuit();
         auto state = spc::State::get();
         state->server->send(state->getEventMessage("level_exit"));
+        state->m_levelData.m_levelData.reset();
     }
 };

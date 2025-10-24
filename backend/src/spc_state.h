@@ -4,6 +4,7 @@
 #include <string>
 
 #include "spc_socket.h"
+#include "spc_level_data.h"
 
 namespace spc {
     class State {
@@ -75,6 +76,8 @@ namespace spc {
             uint32_t m_levelID = 0;
             float m_levelLength = 0.0f;
             std::vector<GameObject> m_gameObjects;
+            ldata::LevelData m_levelData;
+            bool m_hasLevelData = false;
             std::string getName() const override;
             nlohmann::json getJSON() override;
         };
@@ -114,6 +117,6 @@ namespace spc {
     NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::ColorRGB, m_r, m_g, m_b);
     NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::PlayerState, m_x, m_y, m_rotation, m_yVelocity, m_mode);
     NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::GameState, m_mode);
-    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::LevelData, m_levelID, m_levelLength, m_gameObjects);
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::LevelData, m_levelID, m_levelLength, m_gameObjects, m_levelData, m_hasLevelData);
     NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State::LiveLevelData, m_player1, m_player2, m_bgColor, m_lineColor, m_gColor, m_g2Color, m_mgColor, m_mg2Color);
 }
