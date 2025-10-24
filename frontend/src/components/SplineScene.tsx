@@ -804,25 +804,16 @@ function UFOModel({
       modelRef.current.position.copy(scaledPosition);
       modelRef.current.position.y += yOffset;
 
-      // Build rotation manually instead of using lookAt
-      // Create coordinate system from spline orientation
-      const forward = tangent.clone().normalize();
-      const up = normal.clone().normalize();
-      const right = new THREE.Vector3().crossVectors(up, forward).normalize();
-      
-      // Build rotation matrix with UFO facing along tangent
-      const rotationMatrix = new THREE.Matrix4();
-      rotationMatrix.makeBasis(right, up, forward);
-      
-      // Apply base rotation from matrix
-      modelRef.current.quaternion.setFromRotationMatrix(rotationMatrix);
-    
-      // Flip UFO upside down to match model orientation
-      modelRef.current.rotateOnAxis(right, Math.PI);
-      
+      // Orient along spline using tangent and normal vectors
+      // Invert the normal (up vector) to flip the UFO upside down
+      const up = normal.clone().multiplyScalar(-1);
+      const lookAtTarget = new THREE.Vector3(scaledPosition.x, scaledPosition.y + yOffset, scaledPosition.z).add(tangent);
+      modelRef.current.lookAt(lookAtTarget);
+      modelRef.current.up.copy(up);
+
       // Apply player rotation around the tangent axis (roll)
       if (playerRotation !== 0) {
-        modelRef.current.rotateOnAxis(forward, (playerRotation * Math.PI) / 180);
+        modelRef.current.rotateOnAxis(tangent.clone().normalize(), (playerRotation * Math.PI) / 180);
       }
 
       // Add subtle floating motion
