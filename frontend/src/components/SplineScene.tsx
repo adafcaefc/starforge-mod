@@ -599,6 +599,9 @@ function UFOModel({
               const stateData = parsedData.data;
 
               if (stateName === "level_data") {
+                // Reset UFO tangent tracking when new level data arrives
+                prevTangentRef.current.set(0, 0, 1);
+                
                 // Update level data and game objects
                 if (stateData.m_levelLength !== undefined) {
                   playerStateRef.current.levelLength = stateData.m_levelLength || 3000;
@@ -769,6 +772,11 @@ function UFOModel({
       // Calculate progress (0 to 1) - player reaches 100% at level length
       const progress = Math.min(1, Math.max(0, playerX / effectiveLevelLength));
       
+      // Reset tangent tracking if player restarted (near beginning of level)
+      if (playerX < 100) {
+        prevTangentRef.current.set(0, 0, 1);
+      }
+      
       // Map progress to spline length
       const targetLength = progress * splineLength;
 
@@ -796,18 +804,25 @@ function UFOModel({
       modelRef.current.position.copy(scaledPosition);
       modelRef.current.position.y += yOffset;
 
-      // Orient UFO along spline using tangent and normal vectors (same as objects)
-      const up = normal;
-      const lookAtTarget = scaledPosition.clone().add(tangent);
-      modelRef.current.lookAt(lookAtTarget);
-      modelRef.current.up.copy(up);
+      // Build rotation manually instead of using lookAt
+      // Create coordinate system from spline orientation
+      const forward = tangent.clone().normalize();
+      const up = normal.clone().normalize();
+      const right = new THREE.Vector3().crossVectors(up, forward).normalize();
       
-      // Rotate 180 degrees around Y axis to face forward
-      modelRef.current.rotateY(Math.PI);
+      // Build rotation matrix with UFO facing along tangent
+      const rotationMatrix = new THREE.Matrix4();
+      rotationMatrix.makeBasis(right, up, forward);
       
-      // Apply player rotation around the tangent axis (same as objects)
+      // Apply base rotation from matrix
+      modelRef.current.quaternion.setFromRotationMatrix(rotationMatrix);
+    
+      // Flip UFO upside down to match model orientation
+      modelRef.current.rotateOnAxis(right, Math.PI);
+      
+      // Apply player rotation around the tangent axis (roll)
       if (playerRotation !== 0) {
-        modelRef.current.rotateOnAxis(tangent.clone().normalize(), (playerRotation * Math.PI) / 180);
+        modelRef.current.rotateOnAxis(forward, (playerRotation * Math.PI) / 180);
       }
 
       // Add subtle floating motion
