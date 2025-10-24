@@ -1237,7 +1237,7 @@ function GameObjectsField({
   );
 }
 
-// Camera following UFO along spline
+// Camera following UFO along spline (cockpit view)
 function AnimatedCamera({
   splineRef,
   playerStateRef,
@@ -1309,38 +1309,47 @@ function AnimatedCamera({
       forward.z
     ).normalize();
 
-    // Camera controls
-    const distance = cameraControlRef.current.distance;
-    const theta = cameraControlRef.current.theta;
-    const phi = cameraControlRef.current.phi;
+    // Apply operator-derived offsets to camera orientation to keep a cockpit feel
+    const yawOffset = cameraControlRef.current.theta;
+    const pitchOffset = cameraControlRef.current.phi - Math.PI / 2;
     const panX = cameraControlRef.current.panX;
     const panY = cameraControlRef.current.panY;
+    const distance = cameraControlRef.current.distance;
 
-    // Spherical to cartesian
-    const x = distance * Math.sin(phi) * Math.sin(theta);
-    const y = distance * Math.cos(phi);
-    const z = distance * Math.sin(phi) * Math.cos(theta);
+    const yawQuat = new THREE.Quaternion().setFromAxisAngle(upVector, yawOffset);
+    const yawAdjustedRight = right.clone().applyQuaternion(yawQuat).normalize();
+    const pitchQuat = new THREE.Quaternion().setFromAxisAngle(yawAdjustedRight, pitchOffset);
+    const viewAdjustment = new THREE.Quaternion().copy(yawQuat).multiply(pitchQuat);
 
-    // Camera position relative to UFO
-    const targetX = scaledUfoX + x + panX;
-    const targetY = ufoPosition.y + yOffset + y + panY;
-    const targetZ = ufoPosition.z + z;
+  const viewForward = scaledForward.clone().applyQuaternion(viewAdjustment).normalize();
+  let viewUp = upVector.clone().applyQuaternion(viewAdjustment).normalize();
+  const viewRight = new THREE.Vector3().crossVectors(viewForward, viewUp).normalize();
+  viewUp = new THREE.Vector3().crossVectors(viewRight, viewForward).normalize();
+  viewUp.negate();
 
-    const lerpFactor = 0.1;
-    state.camera.position.x = THREE.MathUtils.lerp(state.camera.position.x, targetX, lerpFactor);
-    state.camera.position.y = THREE.MathUtils.lerp(state.camera.position.y, targetY, lerpFactor);
-    state.camera.position.z = THREE.MathUtils.lerp(state.camera.position.z, targetZ, lerpFactor);
+  const baseFollowDistance = 0.4 + distance * 0.05;
+    const cockpitVerticalOffset = 0.65;
 
-    // Look at UFO
+    const desiredPosition = scaledUfoPosition
+      .clone()
+      .sub(viewForward.clone().multiplyScalar(baseFollowDistance))
+      .add(viewUp.clone().multiplyScalar(cockpitVerticalOffset + panY))
+      .add(viewRight.clone().multiplyScalar(panX));
+
+  const lerpFactor = 0.25;
+    state.camera.position.lerp(desiredPosition, lerpFactor);
+
+    const lookAheadDistance = 50;
+    const lookTarget = state.camera.position.clone().add(viewForward.clone().multiplyScalar(lookAheadDistance));
+
+    const lookMatrix = new THREE.Matrix4().lookAt(state.camera.position, lookTarget, viewUp);
+    const targetQuaternion = new THREE.Quaternion().setFromRotationMatrix(lookMatrix);
+    state.camera.quaternion.slerp(targetQuaternion, lerpFactor);
+    state.camera.up.lerp(viewUp, lerpFactor);
+
     const controls = state.controls as any;
     if (controls && controls.target) {
-      // Advance the look target along the spline to match the UFO's forward direction
-      const lookAheadDistance = Math.max(5, distance * 0.35);
-  const forwardOffset = scaledForward.clone().multiplyScalar(lookAheadDistance);
-      const lookAtTarget = scaledUfoPosition.clone().add(forwardOffset);
-      lookAtTarget.x += panX;
-      lookAtTarget.y += panY;
-      controls.target.lerp(lookAtTarget, lerpFactor);
+      controls.target.copy(lookTarget);
       controls.update();
     }
   });
@@ -1580,14 +1589,14 @@ export default function SplineScene() {
   }>({});
 
   const cameraControlRef = useRef({
-    distance: 15,
-    theta: (0.6 * Math.PI) / 180,
-    phi: (45.8 * Math.PI) / 180,
+    distance: 0,
+    theta: 0,
+    phi: Math.PI / 2,
     panX: 0,
     panY: 0,
   });
 
-  const [cameraControl, setCameraControl] = useState(cameraControlRef.current);
+  const [, setCameraControl] = useState(cameraControlRef.current);
 
   // Spline editing state
   const selectedPointRef = useRef<number | null>(null);
@@ -1818,7 +1827,7 @@ export default function SplineScene() {
         const deltaY = e.clientY - lastMousePosRef.current.y;
 
         if (e.shiftKey || isPanningRef.current) {
-          const panSensitivity = 0.00005 + cameraControlRef.current.distance * 0.001;
+          const panSensitivity = 0.005 + cameraControlRef.current.distance * 0.01;
           cameraControlRef.current.panX -= deltaX * panSensitivity;
           cameraControlRef.current.panY += deltaY * panSensitivity;
         } else {
@@ -1853,11 +1862,11 @@ export default function SplineScene() {
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const zoomSensitivity = 0.00005 + cameraControlRef.current.distance * 0.001;
+      const zoomSensitivity = 0.002 + cameraControlRef.current.distance * 0.02;
       cameraControlRef.current.distance += e.deltaY * zoomSensitivity;
       cameraControlRef.current.distance = Math.max(
-        0.00001,
-        Math.min(50, cameraControlRef.current.distance)
+        0,
+        Math.min(10, cameraControlRef.current.distance)
       );
       setCameraControl({ ...cameraControlRef.current });
     };
