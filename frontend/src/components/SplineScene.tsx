@@ -1276,43 +1276,35 @@ function SplineEditorControls({
   }, [splineRef]);
 
   return (
-    <div className="absolute top-4 left-4 bg-gray-900/80 backdrop-blur-sm p-4 rounded-lg shadow-lg border border-gray-700 z-10">
-      <div className="text-white text-sm font-medium mb-3">Spline Editor</div>
-      <div className="text-xs text-gray-300 mb-3">
-        Segments: <span className="font-mono">{segmentCount}</span>
-      </div>
+    <div className="absolute top-4 left-4 bg-black/30 backdrop-blur-md p-4 rounded-lg shadow-lg border border-gray-700 z-10">
       <div className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <button
-            onClick={onAddSegment}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
-          >
-            + Add Segment
-          </button>
-          <button
-            onClick={onRemoveSegment}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
-            disabled={segmentCount <= 1}
-          >
-            - Remove Segment
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={onSaveSpline}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
-          >
-            Save to JSON
-          </button>
-          <button
-            onClick={onLoadSpline}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
-          >
-            Load from JSON
-          </button>
-        </div>
+        <button
+          onClick={onAddSegment}
+          className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+        >
+          Add Segment
+        </button>
+        <button
+          onClick={onRemoveSegment}
+          className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+          disabled={segmentCount <= 1}
+        >
+          Remove Segment
+        </button>
+        <div className="border-t border-gray-600 my-1"></div>
+        <button
+          onClick={onSaveSpline}
+          className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+        >
+          Save to JSON
+        </button>
+        <button
+          onClick={onLoadSpline}
+          className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+        >
+          Load from JSON
+        </button>
         <div className="border-t border-gray-600 pt-2 mt-1">
-          <div className="text-xs text-gray-400 mb-2">Level Sync</div>
           <button
             onClick={onSaveToLevel}
             className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
@@ -1328,11 +1320,6 @@ function SplineEditorControls({
             Object Models Editor
           </button>
         </div>
-      </div>
-      <div className="mt-3 text-xs text-gray-400 space-y-1">
-        <div>Right-click + drag: Orbit</div>
-        <div>Shift + Right-drag: Pan</div>
-        <div>Scroll: Zoom in/out</div>
       </div>
     </div>
   );
@@ -1790,10 +1777,11 @@ export default function SplineScene() {
   return (
     <div className="relative bg-black h-screen w-screen">
       <button
-        className="fixed top-4 right-4 z-20 px-4 py-2 rounded bg-gray-800 text-white shadow hover:bg-gray-700 transition-colors"
+        className="fixed top-4 right-4 z-30 bg-black/70 hover:bg-black/90 text-white px-3 py-2 rounded-lg transition-colors"
         onClick={() => setShowUI((v) => !v)}
+        title={showUI ? "Hide UI" : "Show UI"}
       >
-        {showUI ? "Hide UI" : "Show UI"}
+        {showUI ? "👁️ Hide UI" : "👁️‍🗨️ Show UI"}
       </button>
       <div className="fixed inset-0 w-full h-full">
         {showUI && (
