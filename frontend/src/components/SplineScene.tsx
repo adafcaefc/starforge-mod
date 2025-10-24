@@ -12,6 +12,9 @@ const ObjectModelsEditor = dynamic(() => import("./ObjectModelsEditor"), { ssr: 
 // Global model cache to avoid loading the same model multiple times
 const modelCache = new Map<string, Promise<THREE.Group>>();
 
+// Tune this to control how strongly the player's rotation affects the UFO and camera
+const PLAYER_ROTATION_SCALE = 0.25;
+
 // Helper function to dispose of Three.js objects
 function disposeObject(obj: THREE.Object3D) {
   if (obj instanceof THREE.Mesh) {
@@ -822,7 +825,8 @@ function UFOModel({
 
       // Apply player rotation around the local right axis to mirror 2D left/right turning
       if (playerRotation !== 0) {
-        const rotationRadians = THREE.MathUtils.degToRad(playerRotation);
+        const scaledPlayerRotation = playerRotation * PLAYER_ROTATION_SCALE;
+        const rotationRadians = THREE.MathUtils.degToRad(-scaledPlayerRotation);
         modelRef.current.rotateX(rotationRadians);
       }
 
@@ -1272,10 +1276,38 @@ function AnimatedCamera({
     const scaledLength = playerX * lengthScaleFactor;
     const paramData = spline.findClosestByLength(scaledLength);
     const ufoPosition = spline.get(paramData.t);
-    
-    // Apply X-scale to UFO position
+    const splineTangent = spline.tangent(paramData.t).normalize();
+    const splineNormal = spline.normal(paramData.t).normalize();
+
+    // Apply X-scale to UFO position and frame vectors
     const scaledUfoX = ufoPosition.x * xScale;
     const yOffset = playerY / 100;
+    const scaledUfoPosition = new THREE.Vector3(scaledUfoX, ufoPosition.y + yOffset, ufoPosition.z);
+    let forward = splineTangent.clone();
+    let upVector = splineNormal.clone().multiplyScalar(-1);
+
+    let right = new THREE.Vector3().crossVectors(upVector, forward);
+    if (right.lengthSq() < 1e-6) {
+      const arbitrary = Math.abs(forward.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+      right = new THREE.Vector3().crossVectors(arbitrary, forward).normalize();
+    } else {
+      right.normalize();
+    }
+
+    const playerRotation = playerStateRef.current.p1rotation ?? 0;
+    const scaledPlayerRotation = playerRotation * PLAYER_ROTATION_SCALE;
+    if (scaledPlayerRotation !== 0) {
+      const rotationRadians = THREE.MathUtils.degToRad(-scaledPlayerRotation);
+      const rotationQuat = new THREE.Quaternion().setFromAxisAngle(right, rotationRadians);
+      forward.applyQuaternion(rotationQuat);
+      upVector.applyQuaternion(rotationQuat);
+    }
+
+    const scaledForward = new THREE.Vector3(
+      forward.x * xScale,
+      forward.y,
+      forward.z
+    ).normalize();
 
     // Camera controls
     const distance = cameraControlRef.current.distance;
@@ -1302,7 +1334,12 @@ function AnimatedCamera({
     // Look at UFO
     const controls = state.controls as any;
     if (controls && controls.target) {
-      const lookAtTarget = new THREE.Vector3(scaledUfoX + panX, ufoPosition.y + yOffset + panY, ufoPosition.z);
+      // Advance the look target along the spline to match the UFO's forward direction
+      const lookAheadDistance = Math.max(5, distance * 0.35);
+  const forwardOffset = scaledForward.clone().multiplyScalar(lookAheadDistance);
+      const lookAtTarget = scaledUfoPosition.clone().add(forwardOffset);
+      lookAtTarget.x += panX;
+      lookAtTarget.y += panY;
       controls.target.lerp(lookAtTarget, lerpFactor);
       controls.update();
     }
