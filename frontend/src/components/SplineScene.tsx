@@ -783,14 +783,13 @@ function UFOModel({
       // Find parameter t based on length
       const paramData = spline.findClosestByLength(targetLength);
       const position = spline.get(paramData.t);
-      let tangent = spline.tangent(paramData.t);
-      let normal = spline.normal(paramData.t);
+      let tangent = spline.tangent(paramData.t).normalize();
+      let normal = spline.normal(paramData.t).normalize();
 
-      // Check if tangent flipped direction compared to previous frame
+      // Ensure orientation stays consistent when the spline direction flips between frames
       if (prevTangentRef.current.dot(tangent) < 0) {
-        // Tangent flipped, reverse both tangent and normal to maintain consistent orientation
-        tangent = tangent.clone().multiplyScalar(-1);
-        normal = normal.clone().multiplyScalar(-1);
+        tangent = tangent.multiplyScalar(-1);
+        normal = normal.multiplyScalar(-1);
       }
       prevTangentRef.current.copy(tangent);
 
@@ -804,16 +803,27 @@ function UFOModel({
       modelRef.current.position.copy(scaledPosition);
       modelRef.current.position.y += yOffset;
 
-      // Orient along spline using tangent and normal vectors
-      // Invert the normal (up vector) to flip the UFO upside down
-      const up = normal.clone().multiplyScalar(-1);
-      const lookAtTarget = new THREE.Vector3(scaledPosition.x, scaledPosition.y + yOffset, scaledPosition.z).add(tangent);
-      modelRef.current.lookAt(lookAtTarget);
-      modelRef.current.up.copy(up);
+      // Build an orthonormal basis from the spline frame to drive the UFO orientation
+      const forward = tangent.clone();
+      const upVector = normal.clone().multiplyScalar(-1); // Flip to match scene orientation
 
-      // Apply player rotation around the tangent axis (roll)
+      let right = new THREE.Vector3().crossVectors(upVector, forward);
+      if (right.lengthSq() < 1e-6) {
+        // Fallback in the rare case forward and up become parallel
+        const arbitrary = Math.abs(forward.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        right = new THREE.Vector3().crossVectors(arbitrary, forward).normalize();
+      } else {
+        right.normalize();
+      }
+
+      const correctedUp = new THREE.Vector3().crossVectors(forward, right).normalize();
+      const basis = new THREE.Matrix4().makeBasis(right, correctedUp, forward);
+      modelRef.current.quaternion.setFromRotationMatrix(basis);
+
+      // Apply player rotation around the local right axis to mirror 2D left/right turning
       if (playerRotation !== 0) {
-        modelRef.current.rotateOnAxis(tangent.clone().normalize(), (playerRotation * Math.PI) / 180);
+        const rotationRadians = THREE.MathUtils.degToRad(playerRotation);
+        modelRef.current.rotateX(rotationRadians);
       }
 
       // Add subtle floating motion
