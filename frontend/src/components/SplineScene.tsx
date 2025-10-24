@@ -12,6 +12,28 @@ const ObjectModelsEditor = dynamic(() => import("./ObjectModelsEditor"), { ssr: 
 // Global model cache to avoid loading the same model multiple times
 const modelCache = new Map<string, Promise<THREE.Group>>();
 
+// Helper function to dispose of Three.js objects
+function disposeObject(obj: THREE.Object3D) {
+  if (obj instanceof THREE.Mesh) {
+    if (obj.geometry) {
+      obj.geometry.dispose();
+    }
+    if (obj.material) {
+      if (Array.isArray(obj.material)) {
+        obj.material.forEach((mat) => {
+          if (mat.map) mat.map.dispose();
+          mat.dispose();
+        });
+      } else {
+        if (obj.material.map) obj.material.map.dispose();
+        obj.material.dispose();
+      }
+    }
+  }
+  // Recursively dispose children
+  obj.children.forEach((child) => disposeObject(child));
+}
+
 function loadModel(modelPath: string): Promise<THREE.Group> {
   if (modelCache.has(modelPath)) {
     return modelCache.get(modelPath)!;
@@ -34,6 +56,11 @@ function loadModel(modelPath: string): Promise<THREE.Group> {
 
   modelCache.set(modelPath, promise);
   return promise;
+}
+
+// Helper to clear model cache if needed
+export function clearModelCache() {
+  modelCache.clear();
 }
 
 // Cubic Bezier curve implementation matching the C++ Curve class
@@ -363,7 +390,14 @@ function GameObject({
   }, [objectId, nativePtr, objectModelsDataRef]);
 
   useEffect(() => {
-    if (!selectedModel) return;
+    if (!selectedModel) {
+      // Clean up any existing scene when no model is selected
+      if (scene) {
+        disposeObject(scene);
+        setScene(null);
+      }
+      return;
+    }
 
     const modelPath = `/models/objects/${selectedModel}`;
     
@@ -377,6 +411,13 @@ function GameObject({
       .catch((error) => {
         console.error(`Failed to load ${modelPath}:`, error);
       });
+    
+    // Cleanup function to dispose of the cloned scene when model changes or component unmounts
+    return () => {
+      if (scene) {
+        disposeObject(scene);
+      }
+    };
   }, [selectedModel]);
 
   useFrame((state) => {
@@ -486,6 +527,13 @@ function UFOModel({
         console.error("Failed to load GLB:", error);
       }
     );
+
+    // Cleanup function to dispose of the UFO scene
+    return () => {
+      if (scene) {
+        disposeObject(scene);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -604,6 +652,10 @@ function UFOModel({
         socketRef.current.close();
         socketRef.current = null;
       }
+      // Dispose canvas texture on cleanup
+      if (canvasTexture) {
+        canvasTexture.dispose();
+      }
     };
   }, []);
 
@@ -718,6 +770,43 @@ function SplineVisualization({
   const lineRef = useRef<THREE.Line>(null);
   const controlPointsRef = useRef<THREE.Group>(null);
   const baseSplineLengthRef = useRef<number>(0);
+  
+  // Reusable geometries and materials to avoid recreation every frame
+  const controlPointGeometriesRef = useRef<{
+    endpointGeometry: THREE.SphereGeometry;
+    handleGeometry: THREE.SphereGeometry;
+    endpointMaterial: THREE.MeshStandardMaterial;
+    handleMaterial: THREE.MeshStandardMaterial;
+  } | null>(null);
+
+  // Initialize reusable geometries and materials once
+  useEffect(() => {
+    controlPointGeometriesRef.current = {
+      endpointGeometry: new THREE.SphereGeometry(0.15, 16, 16),
+      handleGeometry: new THREE.SphereGeometry(0.1, 16, 16),
+      endpointMaterial: new THREE.MeshStandardMaterial({ 
+        color: 0xff0000, 
+        emissive: 0xff0000, 
+        emissiveIntensity: 0.3 
+      }),
+      handleMaterial: new THREE.MeshStandardMaterial({ 
+        color: 0x00ff00, 
+        emissive: 0x00ff00, 
+        emissiveIntensity: 0.3 
+      }),
+    };
+
+    // Cleanup function to dispose resources
+    return () => {
+      if (controlPointGeometriesRef.current) {
+        const { endpointGeometry, handleGeometry, endpointMaterial, handleMaterial } = controlPointGeometriesRef.current;
+        endpointGeometry.dispose();
+        handleGeometry.dispose();
+        endpointMaterial.dispose();
+        handleMaterial.dispose();
+      }
+    };
+  }, []);
 
   // Calculate base spline length once
   useEffect(() => {
@@ -732,7 +821,7 @@ function SplineVisualization({
 
   useFrame(() => {
     const spline = splineRef.current;
-    if (!spline || spline.segments.length === 0) return;
+    if (!spline || spline.segments.length === 0 || !controlPointGeometriesRef.current) return;
 
     // Calculate X-scale based on level length
     const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
@@ -755,64 +844,61 @@ function SplineVisualization({
       lineRef.current.geometry = geometry;
     }
 
-    // Update control points
+    // Update control points - reuse existing meshes instead of recreating
     if (controlPointsRef.current) {
-      // Clear existing control points
-      while (controlPointsRef.current.children.length > 0) {
-        controlPointsRef.current.remove(controlPointsRef.current.children[0]);
+      const { endpointGeometry, handleGeometry, endpointMaterial, handleMaterial } = controlPointGeometriesRef.current;
+      
+      // Calculate expected number of control points
+      const expectedPoints = spline.segments.length * 3 + 1; // Each segment has p1, m1, m2, plus final p2
+      
+      // Remove excess meshes if we have too many
+      while (controlPointsRef.current.children.length > expectedPoints) {
+        const mesh = controlPointsRef.current.children[controlPointsRef.current.children.length - 1];
+        controlPointsRef.current.remove(mesh);
       }
 
-      // Add endpoint and handle spheres
+      let pointIndex = 0;
+      
+      // Helper function to update or create mesh
+      const updateOrCreateMesh = (pos: THREE.Vector3, isEndpoint: boolean) => {
+        let mesh: THREE.Mesh;
+        if (pointIndex < controlPointsRef.current!.children.length) {
+          // Reuse existing mesh
+          mesh = controlPointsRef.current!.children[pointIndex] as THREE.Mesh;
+        } else {
+          // Create new mesh only if needed
+          mesh = new THREE.Mesh(
+            isEndpoint ? endpointGeometry : handleGeometry,
+            (isEndpoint ? endpointMaterial : handleMaterial).clone()
+          );
+          mesh.userData.isControlPoint = true;
+          controlPointsRef.current!.add(mesh);
+        }
+        mesh.position.set(pos.x * xScale, pos.y, pos.z);
+        mesh.userData.pointIndex = pointIndex;
+        
+        // Handle highlighting
+        const isSelected = selectedPointRef.current === pointIndex;
+        const material = mesh.material as THREE.MeshStandardMaterial;
+        material.emissiveIntensity = isSelected ? 0.8 : 0.3;
+        
+        pointIndex++;
+      };
+
+      // Add/update endpoint and handle spheres
       for (const segment of spline.segments) {
         // P1 (red) - scaled
-        const p1Mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.15, 16, 16),
-          new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.3 })
-        );
-        p1Mesh.position.set(segment.p1.x * xScale, segment.p1.y, segment.p1.z);
-        p1Mesh.userData.isControlPoint = true;
-        p1Mesh.userData.pointIndex = controlPointsRef.current.children.length;
-        controlPointsRef.current.add(p1Mesh);
-
+        updateOrCreateMesh(segment.p1, true);
         // M1 (green) - scaled
-        const m1Mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.1, 16, 16),
-          new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.3 })
-        );
-        m1Mesh.position.set(segment.m1.x * xScale, segment.m1.y, segment.m1.z);
-        m1Mesh.userData.isControlPoint = true;
-        m1Mesh.userData.pointIndex = controlPointsRef.current.children.length;
-        controlPointsRef.current.add(m1Mesh);
-
+        updateOrCreateMesh(segment.m1, false);
         // M2 (green) - scaled
-        const m2Mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.1, 16, 16),
-          new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.3 })
-        );
-        m2Mesh.position.set(segment.m2.x * xScale, segment.m2.y, segment.m2.z);
-        m2Mesh.userData.isControlPoint = true;
-        m2Mesh.userData.pointIndex = controlPointsRef.current.children.length;
-        controlPointsRef.current.add(m2Mesh);
+        updateOrCreateMesh(segment.m2, false);
       }
 
       // P2 of last segment (red) - scaled
       if (spline.segments.length > 0) {
         const lastSegment = spline.segments[spline.segments.length - 1];
-        const p2Mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.15, 16, 16),
-          new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.3 })
-        );
-        p2Mesh.position.set(lastSegment.p2.x * xScale, lastSegment.p2.y, lastSegment.p2.z);
-        p2Mesh.userData.isControlPoint = true;
-        p2Mesh.userData.pointIndex = controlPointsRef.current.children.length;
-        controlPointsRef.current.add(p2Mesh);
-      }
-
-      // Highlight selected point
-      if (selectedPointRef.current !== null && controlPointsRef.current.children[selectedPointRef.current]) {
-        const selectedMesh = controlPointsRef.current.children[selectedPointRef.current] as THREE.Mesh;
-        const material = selectedMesh.material as THREE.MeshStandardMaterial;
-        material.emissiveIntensity = 0.8;
+        updateOrCreateMesh(lastSegment.p2, true);
       }
     }
   });
@@ -975,13 +1061,14 @@ function GameObjectsField({
     }>
   >([]);
 
+  // Optimized polling - reduced frequency to minimize performance impact
   useEffect(() => {
     const interval = setInterval(() => {
       const newObjects = gameObjectsRef.current;
       if (newObjects.length > 0) {
         setObjects([...newObjects]);
       }
-    }, 100);
+    }, 250); // Reduced from 100ms to 250ms for better performance
     return () => clearInterval(interval);
   }, [gameObjectsRef]);
 
@@ -1137,10 +1224,11 @@ function SplineEditorControls({
 }) {
   const [segmentCount, setSegmentCount] = useState(0);
 
+  // Optimized polling - reduced frequency to minimize performance impact
   useEffect(() => {
     const interval = setInterval(() => {
       setSegmentCount(splineRef.current.segments.length);
-    }, 100);
+    }, 250); // Reduced from 100ms to 250ms for better performance
     return () => clearInterval(interval);
   }, [splineRef]);
 
