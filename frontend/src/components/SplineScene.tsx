@@ -493,6 +493,7 @@ function UFOModel({
   playerStateRef: React.MutableRefObject<{
     p1x: number;
     p1y: number;
+    p1rotation: number;
     levelLength: number;
   }>;
   lengthScaleFactorRef: React.MutableRefObject<number>;
@@ -523,6 +524,7 @@ function UFOModel({
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const [canvasTexture, setCanvasTexture] = useState<THREE.CanvasTexture | null>(null);
+  const prevTangentRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
 
   const width = 440;
   const height = 240;
@@ -664,6 +666,7 @@ function UFOModel({
                 if (stateData.m_player1) {
                   playerStateRef.current.p1x = stateData.m_player1.m_x || 0;
                   playerStateRef.current.p1y = stateData.m_player1.m_y || 0;
+                  playerStateRef.current.p1rotation = stateData.m_player1.m_rotation || 0;
                 }
               }
             }
@@ -752,6 +755,7 @@ function UFOModel({
       // Calculate position along spline based on player position
       const playerX = playerStateRef.current.p1x;
       const playerY = playerStateRef.current.p1y;
+      const playerRotation = playerStateRef.current.p1rotation;
       const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
 
       // Calculate X-scale based on level length
@@ -771,8 +775,16 @@ function UFOModel({
       // Find parameter t based on length
       const paramData = spline.findClosestByLength(targetLength);
       const position = spline.get(paramData.t);
-      const tangent = spline.tangent(paramData.t);
-      const normal = spline.normal(paramData.t);
+      let tangent = spline.tangent(paramData.t);
+      let normal = spline.normal(paramData.t);
+
+      // Check if tangent flipped direction compared to previous frame
+      if (prevTangentRef.current.dot(tangent) < 0) {
+        // Tangent flipped, reverse both tangent and normal to maintain consistent orientation
+        tangent = tangent.clone().multiplyScalar(-1);
+        normal = normal.clone().multiplyScalar(-1);
+      }
+      prevTangentRef.current.copy(tangent);
 
       // Apply X-scale to position
       const scaledPosition = new THREE.Vector3(position.x * xScale, position.y, position.z);
@@ -784,7 +796,7 @@ function UFOModel({
       modelRef.current.position.copy(scaledPosition);
       modelRef.current.position.y += yOffset;
 
-      // Orient UFO along tangent
+      // Orient UFO along spline using tangent and normal vectors (same as objects)
       const up = normal;
       const lookAtTarget = scaledPosition.clone().add(tangent);
       modelRef.current.lookAt(lookAtTarget);
@@ -792,6 +804,11 @@ function UFOModel({
       
       // Rotate 180 degrees around Y axis to face forward
       modelRef.current.rotateY(Math.PI);
+      
+      // Apply player rotation around the tangent axis (same as objects)
+      if (playerRotation !== 0) {
+        modelRef.current.rotateOnAxis(tangent.clone().normalize(), (playerRotation * Math.PI) / 180);
+      }
 
       // Add subtle floating motion
       const floatingY = Math.sin(time * 2) * 0.005;
@@ -816,6 +833,7 @@ function SplineVisualization({
   playerStateRef: React.MutableRefObject<{
     p1x: number;
     p1y: number;
+    p1rotation: number;
     levelLength: number;
   }>;
 }) {
@@ -985,6 +1003,7 @@ function SplinePointDragger({
   playerStateRef: React.MutableRefObject<{
     p1x: number;
     p1y: number;
+    p1rotation: number;
     levelLength: number;
   }>;
 }) {
@@ -1090,6 +1109,7 @@ function GameObjectsField({
   playerStateRef: React.MutableRefObject<{
     p1x: number;
     p1y: number;
+    p1rotation: number;
     levelLength: number;
   }>;
   objectModelsDataRef: React.MutableRefObject<{
@@ -1208,6 +1228,7 @@ function AnimatedCamera({
   playerStateRef: React.MutableRefObject<{
     p1x: number;
     p1y: number;
+    p1rotation: number;
     levelLength: number;
   }>;
   lengthScaleFactorRef: React.MutableRefObject<number>;
@@ -1370,6 +1391,7 @@ function Scene({
   playerStateRef: React.MutableRefObject<{
     p1x: number;
     p1y: number;
+    p1rotation: number;
     levelLength: number;
   }>;
   lengthScaleFactorRef: React.MutableRefObject<number>;
@@ -1477,6 +1499,7 @@ export default function SplineScene() {
   const playerStateRef = useRef({
     p1x: 0,
     p1y: 0,
+    p1rotation: 0,
     levelLength: 3000,
   });
   const lengthScaleFactorRef = useRef(1);
