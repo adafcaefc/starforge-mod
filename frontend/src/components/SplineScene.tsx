@@ -399,8 +399,6 @@ function GameObject({
         groupRef.current.rotation.z = 0;
       }
 
-      const breathe = Math.sin(time * breatheSpeed) * breatheAmount;
-      
       // Get scale from objectModels data if available
       const modelScaleX = objectModelData?.scaleX || 1.0;
       const modelScaleY = objectModelData?.scaleY || 1.0;
@@ -412,6 +410,8 @@ function GameObject({
         scale[0] * baseScale * modelScaleX
       );
 
+      // Only apply breathing animation if shouldSpin is true
+      const breathe = shouldSpin ? Math.sin(time * breatheSpeed) * breatheAmount : 0;
       groupRef.current.position.set(position[0], position[1] + breathe, position[2]);
     }
   });
