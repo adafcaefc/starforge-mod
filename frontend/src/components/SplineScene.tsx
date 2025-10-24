@@ -653,7 +653,7 @@ function UFOModel({
                     spline.addSegment(segment);
                   }
                   
-                  spline.updateParameterList(10000);
+                  spline.updateParameterList(100000);
                   
                   // Recalculate length scale factor
                   const splineLength = spline.length(1000);
@@ -1094,7 +1094,7 @@ function SplinePointDragger({
 
         // Update spline control point with unscaled coordinates
         splineRef.current.editPointSymmetricCenterFix(selectedPointRef.current, unscaledPoint);
-        splineRef.current.updateParameterList(10000);
+        splineRef.current.updateParameterList(100000);
       }
     }
   });
@@ -1327,7 +1327,7 @@ function AnimatedCamera({
   viewUp = new THREE.Vector3().crossVectors(viewRight, viewForward).normalize();
   viewUp.negate();
 
-  const baseFollowDistance = 0.4 + distance * 0.05;
+  const baseFollowDistance = 0.17 + distance * 0.05;
     const cockpitVerticalOffset = 0.65;
 
     const desiredPosition = scaledUfoPosition
@@ -1637,7 +1637,7 @@ export default function SplineScene() {
             new THREE.Vector3(3.155616935518708, 8.349188125875928, -31.14501130762367)
           )
         );
-        spline.updateParameterList(10000);
+        spline.updateParameterList(100000);
 
         // Calculate length scale factor with default level length of 3000
         const splineLength = spline.length(1000);
@@ -1650,7 +1650,7 @@ export default function SplineScene() {
 
   const handleAddSegment = () => {
     splineRef.current.addNewCurveToSpline();
-    splineRef.current.updateParameterList(10000);
+    splineRef.current.updateParameterList(100000);
     
     // Recalculate length scale factor
     const splineLength = splineRef.current.length(1000);
@@ -1660,7 +1660,7 @@ export default function SplineScene() {
 
   const handleRemoveSegment = () => {
     splineRef.current.removeLastSegment();
-    splineRef.current.updateParameterList(10000);
+    splineRef.current.updateParameterList(100000);
     
     // Recalculate length scale factor
     const splineLength = splineRef.current.length(1000);
@@ -1733,7 +1733,7 @@ export default function SplineScene() {
             objectModelsDataRef.current = levelData.objectModels;
           }
           
-          spline.updateParameterList(10000);
+          spline.updateParameterList(100000);
           
           // Recalculate length scale factor
           const splineLength = spline.length(1000);
