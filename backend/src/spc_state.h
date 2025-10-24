@@ -11,8 +11,7 @@ namespace spc {
     public:
         std::shared_ptr<socket::SocketServer> server = socket::SocketServer::create(6671u);
 
-        struct GameObject
-        {
+        struct GameObject {
             float m_x = 0.0f;
             float m_y = 0.0f;
             float m_rotation = 0.0f;

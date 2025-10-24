@@ -178,7 +178,7 @@ class $modify(cocos2d::CCScheduler) {
             });
 
 
-        doEvery<__COUNTER__, std::chrono::milliseconds, 33>([] {
+        doEvery<__COUNTER__, std::chrono::milliseconds, 16>([] {
             spc::spcCaptureFrame();
             spc::spcSendLevelUpdate();
             });
