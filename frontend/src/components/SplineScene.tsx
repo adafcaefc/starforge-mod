@@ -19,7 +19,11 @@ const FOLLOW_DISTANCE_SCROLL_BASE = 0.0001;
 const FOLLOW_DISTANCE_SCROLL_SCALE = 0.002;
 const MIN_CAMERA_DISTANCE = -2;
 const MAX_CAMERA_DISTANCE = 20;
-const DEFAULT_CAMERA_DISTANCE = 0;
+const DEFAULT_CAMERA_DISTANCE = 6;
+const BASE_ORBIT_YAW = THREE.MathUtils.degToRad(0.6);
+const BASE_ORBIT_PHI = THREE.MathUtils.degToRad(56.8);
+const BASE_PAN_X = -0.02;
+const BASE_PAN_Y = -0.05;
 
 // Helper function to dispose of Three.js objects
 function disposeObject(obj: THREE.Object3D) {
@@ -1689,10 +1693,10 @@ export default function SplineScene() {
 
   const cameraControlRef = useRef({
     distance: DEFAULT_CAMERA_DISTANCE,
-    theta: 0,
-    phi: Math.PI / 2,
-    panX: 0,
-    panY: 0,
+    theta: BASE_ORBIT_YAW,
+    phi: BASE_ORBIT_PHI,
+    panX: BASE_PAN_X,
+    panY: BASE_PAN_Y,
   });
 
   // Stores the free camera pose that is active while the game is in editor mode
@@ -1710,10 +1714,10 @@ export default function SplineScene() {
   useEffect(() => {
     if (wasEditorModeRef.current && !isEditorMode) {
       cameraControlRef.current.distance = DEFAULT_CAMERA_DISTANCE;
-      cameraControlRef.current.theta = 0;
-      cameraControlRef.current.phi = Math.PI / 2;
-      cameraControlRef.current.panX = 0;
-      cameraControlRef.current.panY = 0;
+      cameraControlRef.current.theta = BASE_ORBIT_YAW;
+      cameraControlRef.current.phi = BASE_ORBIT_PHI;
+      cameraControlRef.current.panX = BASE_PAN_X;
+      cameraControlRef.current.panY = BASE_PAN_Y;
     }
     wasEditorModeRef.current = isEditorMode;
   }, [isEditorMode]);
