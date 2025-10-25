@@ -1673,7 +1673,7 @@ function SplineEditorControls({
         </button>
         <button
           onClick={onRemoveSegment}
-          className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+          className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-700"
           disabled={segmentCount <= 1}
         >
           Remove Segment
@@ -1966,7 +1966,22 @@ export default function SplineScene() {
   }, []);
 
   const handleAddSegment = () => {
-    splineRef.current.addNewCurveToSpline();
+    // If spline is empty, create a default segment first
+    if (splineRef.current.segments.length === 0) {
+      const defaultCurve = new CubicBezierCurve(
+        new THREE.Vector3(-1.5435895119281877, 3.1906825413365576, -0.4115749478407258),
+        new THREE.Vector3(13.087417607366804, 5.9791958668292535, -11.981660048657387),
+        new THREE.Vector3(6.919099164601268, 5.067224294028957, -6.483712327427357),
+        new THREE.Vector3(18.829060347334654, 4.949963927833904, -22.643917866773307)
+      );
+      defaultCurve.p1NormalAngle = 0;
+      defaultCurve.p2NormalAngle = 0;
+      splineRef.current.addSegment(defaultCurve);
+      showToast('Created default segment', 'info');
+    } else {
+      splineRef.current.addNewCurveToSpline();
+    }
+    
     splineRef.current.updateParameterList(100000);
 
     // Recalculate length scale factor
@@ -1976,6 +1991,12 @@ export default function SplineScene() {
   };
 
   const handleRemoveSegment = () => {
+    // Don't remove if only one segment left
+    if (splineRef.current.segments.length <= 1) {
+      showToast('Cannot remove the last segment', 'error');
+      return;
+    }
+    
     splineRef.current.removeLastSegment();
     splineRef.current.updateParameterList(100000);
 
