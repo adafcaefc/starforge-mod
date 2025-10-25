@@ -11,7 +11,7 @@ class $modify(EditorPauseLayer) {
             spc::State::get()->m_levelStateReset = true;
             spc::State::get()->m_levelStateUpdate = true;
             });
-        state->server->send(state->getEventMessage("editor_exit"));
+        state->m_server->send(state->getEventMessage("editor_exit"));
         return EditorPauseLayer::onExitEditor(sender);
     }
 };

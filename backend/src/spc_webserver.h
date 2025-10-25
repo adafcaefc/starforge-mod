@@ -5,6 +5,6 @@
 
 namespace spc {
     namespace webserver {
-        void run();
+        void run(uint16_t port);
     }
 }

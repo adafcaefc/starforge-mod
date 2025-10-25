@@ -1,4 +1,6 @@
+#include <boost/type_traits/is_same.hpp>
 #include "spc_webserver.h"
+#include "spc_state.h"
 #include <Geode/Geode.hpp>
 #include <filesystem>
 #include <fstream>
@@ -9,7 +11,7 @@ using namespace geode::prelude;
 
 namespace spc {
     namespace webserver {
-        void run() {
+        void run(uint16_t port) {
             static crow::App<crow::CORSHandler> app;
             auto& cors = app.get_middleware<crow::CORSHandler>();
             cors.global()
@@ -26,7 +28,79 @@ namespace spc {
                     "PATCH"_method,
                     "OPTIONS"_method
                 );
+
+            CROW_ROUTE(app, "/api/mod/info").methods("GET"_method) (
+                [](crow::request const& req, crow::response& res) {
+                    res.add_header("Content-Type", "application/json");
+
+                    auto socketPort = Mod::get()->getSettingValue<uint16_t>("websocket-port");
+                    auto serverPort = Mod::get()->getSettingValue<uint16_t>("webserver-port");
+                    nlohmann::json response = {
+                        {"status", 200},
+                        {"statusText", "success"},
+                        {"message", {
+                            {"modName", Mod::get()->getName()},
+                            {"modVersion", Mod::get()->getVersion().toNonVString()},
+                            {"websocketPort", socketPort},
+                            {"webserverPort", serverPort}
+                        }}
+                    };
+                    res.code = 200;
+                    res.end(response.dump());
+                }
+                );
                
+            CROW_ROUTE(app, "/api/gameobject/selected/get").methods("GET"_method) (
+                [](crow::request const& req, crow::response& res) {
+                    res.add_header("Content-Type", "application/json");
+                    auto level = LevelEditorLayer::get();
+                    if (!level) {
+                        nlohmann::json errorResponse = {
+                            {"status", 404},
+                            {"statusText", "error"},
+                            {"message", "No level editor loaded"}
+                        };
+                        res.code = 404;
+                        res.end(errorResponse.dump());
+                        return;
+                    }
+                    auto editor = level->m_editorUI;
+                    if (!editor) {
+                        nlohmann::json errorResponse = {
+                            {"status", 404},
+                            {"statusText", "error"},
+                            {"message", "No editor UI found"}
+                        };
+                        res.code = 404;
+                        res.end(errorResponse.dump());
+                        return;
+                    }
+                    std::vector<spc::State::GameObject> selectedObjects;
+                    for (auto& objx : CCArrayExt<::GameObject*>(editor->m_selectedObjects)) {
+                        selectedObjects.emplace_back(objx);
+                    }
+                    if (editor->m_selectedObject)
+                        selectedObjects.emplace_back(editor->m_selectedObject);
+                    if (selectedObjects.empty()) {
+                        nlohmann::json errorResponse = {
+                            {"status", 404},
+                            {"statusText", "error"},
+                            {"message", "No objects selected"}
+                        };
+                        res.code = 404;
+                        res.end(errorResponse.dump());
+                        return;
+                    }
+                    nlohmann::json response = {
+                        {"status", 200},
+                        {"statusText", "success"},
+                        {"message", {{"selectedObjects", selectedObjects}}}
+                    };
+                    res.code = 200;
+                    res.end(response.dump());
+                }
+                );
+
             CROW_ROUTE(app, "/api/leveldata/get").methods("GET"_method) (
                 [](crow::request const& req, crow::response& res) {
                     res.add_header("Content-Type", "application/json");
@@ -34,19 +108,33 @@ namespace spc {
                     if (!level)
                      level = LevelEditorLayer::get();
                     if (!level) {
+                        nlohmann::json errorResponse = {
+                            {"status", 404},
+                            {"statusText", "error"},
+                            {"message", "No level loaded"}
+                        };
                         res.code = 404;
-                        res.end(R"({"error": "No level loaded"})");
+                        res.end(errorResponse.dump());
                         return;
                     }
                     if (!ldata::hasLevelData(level)) {
+                        nlohmann::json errorResponse = {
+                            {"status", 404},
+                            {"statusText", "error"},
+                            {"message", "No level data found"}
+                        };
                         res.code = 404;
-                        res.end(R"({"error": "No level data found"})");
+                        res.end(errorResponse.dump());
                         return;
                     }
                     auto data = ldata::getLevelData(level);
-                    nlohmann::json jsonData = data;
+                    nlohmann::json response = {
+                        {"status", 200},
+                        {"statusText", "success"},
+                        {"message", data}
+                    };
                     res.code = 200;
-                    res.end(jsonData.dump());
+                    res.end(response.dump());
                 }
             );
 
@@ -58,20 +146,35 @@ namespace spc {
                     if (!level)
                         level = LevelEditorLayer::get();
                     if (!level) {
+                        nlohmann::json errorResponse = {
+                            {"status", 404},
+                            {"statusText", "error"},
+                            {"message", "No level loaded"}
+                        };
                         res.code = 404;
-                        res.end(R"({"error": "No level loaded"})");
+                        res.end(errorResponse.dump());
                         return;
                     }
                     try {
                         auto jsonData = nlohmann::json::parse(req.body);
                         auto data = jsonData.get<ldata::LevelData>();
                         ldata::setLevelData(level, data);
+                        nlohmann::json successResponse = {
+                            {"status", 200},
+                            {"statusText", "success"},
+                            {"message", "Level data loaded successfully"}
+                        };
                         res.code = 200;
-                        res.end(R"({"status": "Level data loaded successfully"})");
+                        res.end(successResponse.dump());
                     }
                     catch (const std::exception& e) {
+                        nlohmann::json errorResponse = {
+                            {"status", 400},
+                            {"statusText", "error"},
+                            {"message", fmt::format("Failed to parse level data: {}", e.what())}
+                        };
                         res.code = 400;
-                        res.end(fmt::format(R"({{"error": "Failed to parse level data: {}"}})", e.what()));
+                        res.end(errorResponse.dump());
                     }
                 }
             );
@@ -179,7 +282,7 @@ namespace spc {
                 }
             });
 
-            app.port(6673).multithreaded().run();
+            app.port(port).multithreaded().run();
         }
     }
 }

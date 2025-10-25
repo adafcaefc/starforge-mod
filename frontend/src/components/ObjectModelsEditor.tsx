@@ -170,9 +170,10 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
         body: JSON.stringify(levelData),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save level data');
+      const result = await response.json();
+      
+      if (!response.ok || result.status !== 200) {
+        throw new Error(result.message || 'Failed to save level data');
       }
 
       showToast('Object models saved to level successfully!', 'success');

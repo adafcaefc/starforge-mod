@@ -9,7 +9,7 @@ class $modify(PlayLayer) {
         PlayLayer::resetLevel();
         auto state = spc::State::get();
         geode::queueInMainThread([]() { spc::State::get()->m_levelStateUpdate = true; });
-        state->server->send(state->getEventMessage("level_reset"));
+        state->m_server->send(state->getEventMessage("level_reset"));
     }
     void onQuit() {
         PlayLayer::onQuit();
@@ -18,6 +18,6 @@ class $modify(PlayLayer) {
             spc::State::get()->m_levelStateReset = true;
             spc::State::get()->m_levelStateUpdate = true; 
             });
-        state->server->send(state->getEventMessage("level_exit"));
+        state->m_server->send(state->getEventMessage("level_exit"));
     }
 };

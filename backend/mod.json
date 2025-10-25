@@ -8,6 +8,20 @@
 	"version": "v1.0.0-beta.1",
 	"developer": "adaf",
 	"description": "",
+	"settings": {
+		"webserver-port": {
+			"type": "int",
+			"name": "Webserver Port",
+			"description": "Port for the Starforge webserver to run on, applied on restart.",
+			"default": 6673
+		},
+		"websocket-port": {
+			"type": "int",
+			"name": "WebSocket Port",
+			"description": "Port for the Starforge WebSocket server to run on, applied on restart.",
+			"default": 6671
+		}
+	},
 	"tags": [
 		"content",
 		"modtober25"

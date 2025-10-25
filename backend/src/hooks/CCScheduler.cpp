@@ -107,7 +107,7 @@ namespace spc {
 
         std::unique_ptr<uint8_t[]> data = render.captureData(CCScene::get());
 
-        auto server = spc::State::get()->server;
+        auto server = spc::State::get()->m_server;
         server->sendBinary(std::vector<uint8_t>(data.get(), data.get() + (width * height * 4)));
     }
 
@@ -125,23 +125,23 @@ namespace spc {
                 state->m_levelData.reset();
             if (state->m_levelStateReset) {
                 state->m_levelData.reset();
-                state->server->send(state->getEventMessage("level_data_reset"));
+                state->m_server->send(state->getEventMessage("level_data_reset"));
                 state->m_levelStateReset = false;
             }
-            state->server->send(state->getLevelDataMessage());
-            state->server->send(state->getEventMessage("level_data_update"));
+            state->m_server->send(state->getLevelDataMessage());
+            state->m_server->send(state->getEventMessage("level_data_update"));
             state->m_levelStateUpdate = false;
         }
     }
 
     static void spcSendGameState() {
         auto state = spc::State::get();
-        state->server->send(state->getGameStateMessage());
+        state->m_server->send(state->getGameStateMessage());
 
         spc::loadState();
 
         // Send live level data for player position updates
-        state->server->send(state->getLiveLevelDataMessage());
+        state->m_server->send(state->getLiveLevelDataMessage());
     }
 }
 
@@ -165,11 +165,6 @@ class $modify(cocos2d::CCScheduler) {
 
     void update(float dt) {
         static bool init = false;
-
-        if (!init) {
-            init = true;
-            std::thread(spc::webserver::run).detach();
-        }
 
         cocos2d::CCScheduler::update(dt);
 

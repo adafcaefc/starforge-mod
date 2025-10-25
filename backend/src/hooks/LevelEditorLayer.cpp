@@ -9,7 +9,7 @@ class $modify(LevelEditorLayer) {
         if (auto ret = LevelEditorLayer::init(level, unk)) {
             auto state = spc::State::get();
             geode::queueInMainThread([]() { spc::State::get()->m_levelStateUpdate = true; });
-            state->server->send(state->getEventMessage("editor_start"));
+            state->m_server->send(state->getEventMessage("editor_start"));
             return ret;
         }
         return false;
@@ -18,12 +18,12 @@ class $modify(LevelEditorLayer) {
         LevelEditorLayer::addSpecial(obj);
         auto state = spc::State::get();
         geode::queueInMainThread([]() { spc::State::get()->m_levelStateUpdate = true; });
-        state->server->send(state->getEventMessage("editor_add_object"));
+        state->m_server->send(state->getEventMessage("editor_add_object"));
     }
     void removeSpecial(GameObject* obj) {
         LevelEditorLayer::removeSpecial(obj);
         auto state = spc::State::get();
         geode::queueInMainThread([]() { spc::State::get()->m_levelStateUpdate = true; });
-        state->server->send(state->getEventMessage("editor_remove_object"));
+        state->m_server->send(state->getEventMessage("editor_remove_object"));
     }
 };

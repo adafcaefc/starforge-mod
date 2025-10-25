@@ -4,6 +4,8 @@
 #include <nlohmann/json.hpp>
 #include <sstream>
 
+#include "spc_webserver.h"
+
 namespace spc {
     // SendableState
     nlohmann::json State::SendableState::getMessage() {
@@ -82,17 +84,7 @@ namespace spc {
             // load game objects
             for (auto objx : CCArrayExt<::GameObject*>(layer->m_objects)) {
                 if (objx == layer->m_anticheatSpike) { continue; }
-                State::GameObject obj;
-                obj.m_x = objx->getPositionX();
-                obj.m_y = objx->getPositionY();
-                obj.m_rotation = objx->getRotation();
-                obj.m_scaleX = objx->getScaleX();
-                obj.m_scaleY = objx->getScaleY();
-                obj.m_opacity = static_cast<float>(objx->getOpacity()) / 255.0f;
-                obj.m_visible = objx->isVisible();
-                obj.m_nativePtr = reinterpret_cast<uintptr_t>(objx);
-                obj.m_objectId = objx->m_objectID;
-                m_gameObjects.push_back(obj);
+                m_gameObjects.emplace_back(objx);
             }
         }
     }
@@ -103,5 +95,12 @@ namespace spc {
         m_gameObjects.clear();
         m_levelData.reset();
         m_hasLevelData = false;
+    }
+
+    void State::initializeServer() {
+        m_server = spc::socket::SocketServer::create(
+            Mod::get()->getSettingValue<uint16_t>("websocket-port"));
+        std::thread(spc::webserver::run,
+            Mod::get()->getSettingValue<uint16_t>("webserver-port")).detach();
     }
 }

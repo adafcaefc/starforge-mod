@@ -9,7 +9,11 @@
 namespace spc {
     class State {
     public:
-        std::shared_ptr<socket::SocketServer> server = socket::SocketServer::create(6671u);
+        std::shared_ptr<socket::SocketServer> m_server = nullptr;
+
+        std::filesystem::path getResourcesPath() const {
+            return geode::Mod::get()->getResourcesDir() / "_geode";
+        }
 
         struct GameObject {
             float m_x = 0.0f;
@@ -21,6 +25,20 @@ namespace spc {
             bool m_visible = true;
             int m_objectId = -1;
             uintptr_t m_nativePtr = 0;
+
+            GameObject() = default;
+            GameObject(::GameObject* obj)
+                : m_x(obj->getPositionX())
+                , m_y(obj->getPositionY())
+                , m_rotation(obj->getRotation())
+                , m_scaleX(obj->getScaleX())
+                , m_scaleY(obj->getScaleY())
+                , m_opacity(static_cast<float>(obj->getOpacity()) / 255.0f)
+                , m_visible(obj->isVisible())
+                , m_objectId(obj->m_objectID)
+                , m_nativePtr(reinterpret_cast<uintptr_t>(obj))
+            {
+            }
         };
 
         struct ColorRGB {
@@ -107,9 +125,9 @@ namespace spc {
         std::string getLevelDataMessage();
         std::string getLiveLevelDataMessage();
         std::string getEventMessage(const std::string& eventName, const nlohmann::json& eventData = nlohmann::json());
-
     private:
-        State() = default;
+        void initializeServer();
+        State() { initializeServer(); }
         ~State() = default;
         State(State const&) = delete;
         State(State&&) = delete;

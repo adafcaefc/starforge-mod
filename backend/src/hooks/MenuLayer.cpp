@@ -3,6 +3,8 @@
 #include <filesystem>
 #include <fstream>
 
+#include "spc_state.h"
+
 using namespace geode::prelude;
 
 static std::vector<char> readFromFileSpecial(
@@ -49,7 +51,7 @@ class $modify(MyMenuLayer, MenuLayer) {
 
         auto animation = cocos2d::CCAnimation::create();
         animation->setDelayPerUnit(1.0f / 24.0f);
-        addAnimations(animation, geode::Mod::get()->getResourcesDir() / "_geode" / "rendered" / "btnufo", 64u);
+        addAnimations(animation, spc::State::get()->getResourcesPath() / "rendered" / "ufo", 64u);
         auto gif = cocos2d::CCSprite::create();
         gif->runAction(cocos2d::CCRepeatForever::create(cocos2d::CCAnimate::create(animation)));
 
