@@ -13,8 +13,13 @@ const ObjectModelsEditor = dynamic(() => import("./ObjectModelsEditor"), { ssr: 
 const modelCache = new Map<string, Promise<THREE.Group>>();
 
 // Tune this to control how strongly the player's rotation affects the UFO and camera
-const PLAYER_ROTATION_SCALE = 0.8;
+const PLAYER_ROTATION_SCALE = 0;
 const GAME_MODE_EDITOR = 3; // Matches spc::State::Mode::Editor
+const FOLLOW_DISTANCE_SCROLL_BASE = 0.0001;
+const FOLLOW_DISTANCE_SCROLL_SCALE = 0.002;
+const MIN_CAMERA_DISTANCE = -2;
+const MAX_CAMERA_DISTANCE = 20;
+const DEFAULT_CAMERA_DISTANCE = 0;
 
 // Helper function to dispose of Three.js objects
 function disposeObject(obj: THREE.Object3D) {
@@ -693,6 +698,12 @@ function UFOModel({
                 name: eventName,
                 data: eventData
               });
+
+              if (eventName === "editor_enter") {
+                onGameModeChange(true);
+              } else if (eventName === "editor_exit") {
+                onGameModeChange(false);
+              }
 
               // Note: level_exit event no longer clears objects
               // Objects are only cleared when level_data state is sent with empty m_gameObjects array
@@ -1384,7 +1395,12 @@ function AnimatedCamera({
     const pitchOffset = cameraControlRef.current.phi - Math.PI / 2;
     const panX = cameraControlRef.current.panX;
     const panY = cameraControlRef.current.panY;
-    const distance = cameraControlRef.current.distance;
+    const distance = THREE.MathUtils.clamp(
+      cameraControlRef.current.distance,
+      MIN_CAMERA_DISTANCE,
+      MAX_CAMERA_DISTANCE
+    );
+    cameraControlRef.current.distance = distance;
 
     const yawQuat = new THREE.Quaternion().setFromAxisAngle(upVector, yawOffset);
     const yawAdjustedRight = right.clone().applyQuaternion(yawQuat).normalize();
@@ -1397,7 +1413,7 @@ function AnimatedCamera({
     viewUp = new THREE.Vector3().crossVectors(viewRight, viewForward).normalize();
     viewUp.negate();
 
-    const baseFollowDistance = 0.17 + distance * 0.05;
+  const baseFollowDistance = 0.17 + distance * 0.05;
     const cockpitVerticalOffset = 0.3;
 
     const desiredPosition = scaledUfoPosition
@@ -1672,7 +1688,7 @@ export default function SplineScene() {
   }>({});
 
   const cameraControlRef = useRef({
-    distance: 0,
+    distance: DEFAULT_CAMERA_DISTANCE,
     theta: 0,
     phi: Math.PI / 2,
     panX: 0,
@@ -1688,6 +1704,19 @@ export default function SplineScene() {
 
   // Tracks whether the editor camera is rotating or panning during a drag
   const cameraDragModeRef = useRef<"rotate" | "pan" | null>(null);
+  const wasEditorModeRef = useRef(isEditorMode);
+
+  // Reset cockpit camera offsets when the editor is closed so the view snaps back to first person
+  useEffect(() => {
+    if (wasEditorModeRef.current && !isEditorMode) {
+      cameraControlRef.current.distance = DEFAULT_CAMERA_DISTANCE;
+      cameraControlRef.current.theta = 0;
+      cameraControlRef.current.phi = Math.PI / 2;
+      cameraControlRef.current.panX = 0;
+      cameraControlRef.current.panY = 0;
+    }
+    wasEditorModeRef.current = isEditorMode;
+  }, [isEditorMode]);
 
   // Spline editing state
   const selectedPointRef = useRef<number | null>(null);
@@ -1978,16 +2007,26 @@ export default function SplineScene() {
     };
 
     const handleWheel = (e: WheelEvent) => {
-      if (!isEditorMode) {
+      if (isEditorMode) {
+        e.preventDefault();
+        const { forward } = getEditorDirections();
+        const zoomSensitivity = 0.005;
+        editorCameraRef.current.position.addScaledVector(
+          forward,
+          -e.deltaY * zoomSensitivity
+        );
         return;
       }
+
       e.preventDefault();
-      const { forward } = getEditorDirections();
-      const zoomSensitivity = 0.02;
-      editorCameraRef.current.position.addScaledVector(
-        forward,
-        -e.deltaY * zoomSensitivity
+      const currentDistance = cameraControlRef.current.distance;
+      const zoomSensitivity = FOLLOW_DISTANCE_SCROLL_BASE + Math.abs(currentDistance) * FOLLOW_DISTANCE_SCROLL_SCALE;
+      const nextDistance = THREE.MathUtils.clamp(
+        currentDistance + e.deltaY * zoomSensitivity,
+        MIN_CAMERA_DISTANCE,
+        MAX_CAMERA_DISTANCE
       );
+      cameraControlRef.current.distance = nextDistance;
     };
 
     window.addEventListener("mousedown", handleMouseDown);
