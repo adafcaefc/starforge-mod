@@ -1406,7 +1406,7 @@ function AnimatedCamera({
       .add(viewUp.clone().multiplyScalar(cockpitVerticalOffset + panY))
       .add(viewRight.clone().multiplyScalar(panX));
 
-  const lerpFactor = 0.25;
+  const lerpFactor = 1;
     state.camera.position.lerp(desiredPosition, lerpFactor);
 
     const lookAheadDistance = 50;
