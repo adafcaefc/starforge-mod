@@ -1435,6 +1435,12 @@ function AnimatedCamera({
   }>;
 }) {
   const editorInitializedRef = useRef(false);
+  // Preserve the last valid cockpit frame so zoom controls stay responsive when spline data is missing
+  const fallbackCameraFrameRef = useRef({
+    position: new THREE.Vector3(0, 0, 0),
+    forward: new THREE.Vector3(0, 0, -1),
+    up: new THREE.Vector3(0, 1, 0),
+  });
 
   useFrame((state) => {
     const controls = state.controls as any;
@@ -1491,52 +1497,90 @@ function AnimatedCamera({
     editorInitializedRef.current = false;
 
     const spline = splineRef.current;
-    if (spline.segments.length === 0) return;
+    const hasSpline = spline.segments.length > 0;
 
-    const playerX = playerStateRef.current.p1x;
-    const playerY = playerStateRef.current.p1y;
-    const lengthScaleFactor = lengthScaleFactorRef.current;
-    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+    const fallbackFrame = fallbackCameraFrameRef.current;
 
-    // Calculate X-scale based on level length
-    const defaultLevelLength = 3000;
-    const xScale = effectiveLevelLength / defaultLevelLength;
+    let scaledUfoPosition = fallbackFrame.position.clone();
+    let forward = fallbackFrame.forward.clone();
+    let upVector = fallbackFrame.up.clone();
 
-    const scaledLength = playerX * lengthScaleFactor;
-    const paramData = spline.findClosestByLength(scaledLength);
-    const ufoPosition = spline.get(paramData.t);
-    const splineTangent = spline.tangent(paramData.t).normalize();
-    const splineNormal = spline.normal(paramData.t).normalize();
+    if (forward.lengthSq() < 1e-6) {
+      forward.set(0, 0, -1);
+    }
+    forward.normalize();
 
-    // Apply X-scale to UFO position and frame vectors
-    const scaledUfoX = ufoPosition.x * xScale;
-    const yOffset = playerY / 100;
-    const scaledUfoPosition = new THREE.Vector3(scaledUfoX, ufoPosition.y + yOffset, ufoPosition.z);
-    let forward = splineTangent.clone();
-    let upVector = splineNormal.clone().multiplyScalar(-1);
+    if (upVector.lengthSq() < 1e-6) {
+      upVector.set(0, 1, 0);
+    }
+    upVector.normalize();
 
     let right = new THREE.Vector3().crossVectors(upVector, forward);
     if (right.lengthSq() < 1e-6) {
-      const arbitrary = Math.abs(forward.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
-      right = new THREE.Vector3().crossVectors(arbitrary, forward).normalize();
+      right = Math.abs(forward.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
     } else {
       right.normalize();
     }
 
-    const playerRotation = playerStateRef.current.p1rotation ?? 0;
-    const scaledPlayerRotation = playerRotation * PLAYER_ROTATION_SCALE;
-    if (scaledPlayerRotation !== 0) {
-      const rotationRadians = THREE.MathUtils.degToRad(-scaledPlayerRotation);
-      const rotationQuat = new THREE.Quaternion().setFromAxisAngle(right, rotationRadians);
-      forward.applyQuaternion(rotationQuat);
-      upVector.applyQuaternion(rotationQuat);
-    }
+    if (hasSpline) {
+      const playerX = playerStateRef.current.p1x;
+      const playerY = playerStateRef.current.p1y;
+      const lengthScaleFactor = lengthScaleFactorRef.current;
+      const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
 
-    const scaledForward = new THREE.Vector3(
-      forward.x * xScale,
-      forward.y,
-      forward.z
-    ).normalize();
+      const defaultLevelLength = 3000;
+      const xScale = effectiveLevelLength / defaultLevelLength;
+
+      const scaledLength = playerX * lengthScaleFactor;
+      const paramData = spline.findClosestByLength(scaledLength);
+      const ufoPosition = spline.get(paramData.t);
+      const splineTangent = spline.tangent(paramData.t).normalize();
+      const splineNormal = spline.normal(paramData.t).normalize();
+
+      const scaledUfoX = ufoPosition.x * xScale;
+      const yOffset = playerY / 100;
+      scaledUfoPosition = new THREE.Vector3(scaledUfoX, ufoPosition.y + yOffset, ufoPosition.z);
+
+      forward = splineTangent.clone();
+      upVector = splineNormal.clone().multiplyScalar(-1);
+
+      right = new THREE.Vector3().crossVectors(upVector, forward);
+      if (right.lengthSq() < 1e-6) {
+        const arbitrary = Math.abs(forward.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        right = new THREE.Vector3().crossVectors(arbitrary, forward).normalize();
+      } else {
+        right.normalize();
+      }
+
+      const playerRotation = playerStateRef.current.p1rotation ?? 0;
+      const scaledPlayerRotation = playerRotation * PLAYER_ROTATION_SCALE;
+      if (scaledPlayerRotation !== 0) {
+        const rotationRadians = THREE.MathUtils.degToRad(-scaledPlayerRotation);
+        const rotationQuat = new THREE.Quaternion().setFromAxisAngle(right, rotationRadians);
+        forward.applyQuaternion(rotationQuat);
+        upVector.applyQuaternion(rotationQuat);
+      }
+
+      const scaledForward = new THREE.Vector3(
+        forward.x * xScale,
+        forward.y,
+        forward.z
+      ).normalize();
+
+      forward = scaledForward;
+      upVector.normalize();
+
+      right = new THREE.Vector3().crossVectors(upVector, forward);
+      if (right.lengthSq() < 1e-6) {
+        right = Math.abs(forward.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+      } else {
+        right.normalize();
+      }
+
+      fallbackFrame.position.copy(scaledUfoPosition);
+      fallbackFrame.forward.copy(forward);
+      fallbackFrame.up.copy(upVector);
+    }
 
     // Apply operator-derived offsets to camera orientation to keep a cockpit feel
     const yawOffset = cameraControlRef.current.theta;
@@ -1555,13 +1599,13 @@ function AnimatedCamera({
     const pitchQuat = new THREE.Quaternion().setFromAxisAngle(yawAdjustedRight, pitchOffset);
     const viewAdjustment = new THREE.Quaternion().copy(yawQuat).multiply(pitchQuat);
 
-    const viewForward = scaledForward.clone().applyQuaternion(viewAdjustment).normalize();
+    const viewForward = forward.clone().applyQuaternion(viewAdjustment).normalize();
     let viewUp = upVector.clone().applyQuaternion(viewAdjustment).normalize();
     const viewRight = new THREE.Vector3().crossVectors(viewForward, viewUp).normalize();
     viewUp = new THREE.Vector3().crossVectors(viewRight, viewForward).normalize();
     viewUp.negate();
 
-  const baseFollowDistance = 0.17 + distance * 0.05;
+    const baseFollowDistance = 0.17 + distance * 0.05;
     const cockpitVerticalOffset = 0.3;
 
     const desiredPosition = scaledUfoPosition
