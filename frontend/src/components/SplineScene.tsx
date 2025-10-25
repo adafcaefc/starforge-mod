@@ -941,15 +941,29 @@ function UFOModel({
       // Find parameter t based on length
       const paramData = spline.findClosestByLength(targetLength);
       const position = spline.get(paramData.t);
-      let tangent = spline.tangent(paramData.t).normalize();
-      let normal = spline.normal(paramData.t).normalize();
+      const rawTangent = spline.tangent(paramData.t).normalize();
+      const rawNormal = spline.normal(paramData.t).normalize();
+
+      // Apply the non-uniform X scaling to the spline frame so orientation matches the stretched path
+      let tangent = new THREE.Vector3(rawTangent.x * xScale, rawTangent.y, rawTangent.z).normalize();
+      let normal = new THREE.Vector3(rawNormal.x * xScale, rawNormal.y, rawNormal.z).normalize();
 
       // Ensure orientation stays consistent when the spline direction flips between frames
       if (prevTangentRef.current.dot(tangent) < 0) {
-        tangent = tangent.multiplyScalar(-1);
-        normal = normal.multiplyScalar(-1);
+        tangent.multiplyScalar(-1);
+        normal.multiplyScalar(-1);
       }
       prevTangentRef.current.copy(tangent);
+
+      // Re-orthonormalize the frame to avoid skew introduced by scaling
+      let right = new THREE.Vector3().crossVectors(normal, tangent);
+      if (right.lengthSq() < 1e-6) {
+        const arbitrary = Math.abs(tangent.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        right = new THREE.Vector3().crossVectors(arbitrary, tangent).normalize();
+      } else {
+        right.normalize();
+      }
+      normal = new THREE.Vector3().crossVectors(tangent, right).normalize();
 
       // Apply X-scale to position
       const scaledPosition = new THREE.Vector3(position.x * xScale, position.y, position.z);
@@ -965,7 +979,7 @@ function UFOModel({
       const forward = tangent.clone();
       const upVector = normal.clone().multiplyScalar(-1); // Flip to match scene orientation
 
-      let right = new THREE.Vector3().crossVectors(upVector, forward);
+      right = new THREE.Vector3().crossVectors(upVector, forward);
       if (right.lengthSq() < 1e-6) {
         // Fallback in the rare case forward and up become parallel
         const arbitrary = Math.abs(forward.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
@@ -1364,8 +1378,20 @@ function GameObjectsField({
     // Find position on spline
     const paramData = spline.findClosestByLength(targetLength);
     const position = spline.get(paramData.t);
-    const tangent = spline.tangent(paramData.t);
-    const normal = spline.normal(paramData.t);
+    const rawTangent = spline.tangent(paramData.t).normalize();
+    const rawNormal = spline.normal(paramData.t).normalize();
+
+    let tangent = new THREE.Vector3(rawTangent.x * xScale, rawTangent.y, rawTangent.z).normalize();
+    let normal = new THREE.Vector3(rawNormal.x * xScale, rawNormal.y, rawNormal.z).normalize();
+
+    let right = new THREE.Vector3().crossVectors(normal, tangent);
+    if (right.lengthSq() < 1e-6) {
+      const arbitrary = Math.abs(tangent.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+      right = new THREE.Vector3().crossVectors(arbitrary, tangent).normalize();
+    } else {
+      right.normalize();
+    }
+    normal = new THREE.Vector3().crossVectors(tangent, right).normalize();
 
     // Apply X-scale to position
     const scaledX = position.x * xScale;
