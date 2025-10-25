@@ -13,7 +13,7 @@ const ObjectModelsEditor = dynamic(() => import("./ObjectModelsEditor"), { ssr: 
 const modelCache = new Map<string, Promise<THREE.Group>>();
 
 // Tune this to control how strongly the player's rotation affects the UFO and camera
-const PLAYER_ROTATION_SCALE = 0.25;
+const PLAYER_ROTATION_SCALE = 0.8;
 const GAME_MODE_EDITOR = 3; // Matches spc::State::Mode::Editor
 
 // Helper function to dispose of Three.js objects
