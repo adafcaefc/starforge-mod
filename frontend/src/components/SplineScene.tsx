@@ -1985,7 +1985,7 @@ export default function SplineScene() {
     lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
   };
 
-  const handleSaveSpline = () => {
+  const handleSaveSpline = async () => {
     const spline = splineRef.current;
     const levelData = {
       segments: spline.segments.map(segment => ({
@@ -1999,29 +1999,46 @@ export default function SplineScene() {
       objectModels: objectModelsDataRef.current,
     };
 
-    const defaultFileName = "StarforgeLevelData";
-    const userInput = window.prompt("Enter a name for the spline JSON file", defaultFileName);
-    if (userInput === null) {
-      showToast("Save cancelled.", "info");
-      return;
-    }
-
-    const trimmedInput = userInput.trim() || defaultFileName;
-    const sanitizedInput = trimmedInput.replace(/[<>:"/\\|?*]/g, "_");
-    const safeName = sanitizedInput.length > 0 ? sanitizedInput : defaultFileName;
-    const fileName = safeName.toLowerCase().endsWith(".json") ? safeName : `${safeName}.json`;
-
     const json = JSON.stringify(levelData, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast(`Level data saved to ${fileName}`, 'success');
+
+    // Use File System Access API if available (modern browsers)
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: 'StarforgeLevelData.json',
+          types: [
+            {
+              description: 'JSON Files',
+              accept: { 'application/json': ['.json'] },
+            },
+          ],
+        });
+
+        const writable = await handle.createWritable();
+        await writable.write(json);
+        await writable.close();
+
+        showToast(`Level data saved successfully!`, 'success');
+      } catch (error: any) {
+        // User cancelled or error occurred
+        if (error.name !== 'AbortError') {
+          console.error('Failed to save file:', error);
+          showToast('Failed to save file', 'error');
+        }
+      }
+    } else {
+      // Fallback for browsers that don't support File System Access API
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'StarforgeLevelData.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Level data saved to StarforgeLevelData.json', 'success');
+    }
   };
 
   const handleLoadSpline = () => {

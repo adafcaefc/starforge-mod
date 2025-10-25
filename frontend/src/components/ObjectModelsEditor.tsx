@@ -40,6 +40,11 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
   const [spriteCache, setSpriteCache] = useState<{ [key: string]: string }>({});
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastIdCounter = useRef(0);
+  const [selectedObjects, setSelectedObjects] = useState<Array<{ m_objectId: number }>>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [dropdownObjectIds, setDropdownObjectIds] = useState<number[]>([]);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const API_BASE = "http://localhost:6673";
 
   // Toast notification system
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
@@ -49,6 +54,75 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
       setToasts((prev) => prev.filter((toast) => toast.id !== id));
     }, 3000);
   };
+
+  // Fetch selected objects from API
+  useEffect(() => {
+    const fetchSelectedObjects = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/gameobject/selected/get`);
+        const data = await response.json();
+        
+        if (response.ok && data.status === 200) {
+          const objects = data.message.selectedObjects || [];
+          setSelectedObjects(objects);
+        } else {
+          setSelectedObjects([]);
+        }
+      } catch (error) {
+        console.log("Failed to fetch selected objects:", error);
+        setSelectedObjects([]);
+      }
+    };
+
+    fetchSelectedObjects();
+    // Poll every 2 seconds for updates
+    const interval = setInterval(fetchSelectedObjects, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Update dropdown IDs based on selected objects and text input
+  useEffect(() => {
+    const inputNum = parseInt(newObjectId) || 0;
+    
+    if (selectedObjects.length > 0) {
+      // Get unique object IDs from selected objects
+      const uniqueSelectedIds = Array.from(new Set(selectedObjects.map((obj: any) => obj.m_objectId))) as number[];
+      // Take first 10 unique selected IDs
+      const selectedIds = uniqueSelectedIds.slice(0, 10);
+      
+      // Generate next 10 IDs based on text input (or first selected if no input)
+      const baseId = inputNum > 0 ? inputNum : selectedIds[0] || 1;
+      const nextIds: number[] = [];
+      for (let i = 1; i <= 10; i++) {
+        nextIds.push(baseId + i);
+      }
+      
+      // Combine: selected IDs first, then next IDs
+      setDropdownObjectIds([...selectedIds, ...nextIds]);
+    } else {
+      // No objects selected - generate from text input or defaults
+      const baseId = inputNum > 0 ? inputNum : 1;
+      const ids: number[] = [];
+      for (let i = 0; i < 10; i++) {
+        ids.push(baseId + i);
+      }
+      setDropdownObjectIds(ids);
+    }
+  }, [selectedObjects, newObjectId]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showDropdown]);
 
   // Load available GLB files in the objects folder
   useEffect(() => {
@@ -176,19 +250,22 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
         throw new Error(result.message || 'Failed to save level data');
       }
 
-      showToast('Object models saved to level successfully!', 'success');
+      showToast('Object models saved successfully!', 'success');
       console.log('Object models saved to level');
+      
+      // Call onSave callback if provided
+      if (onSave) {
+        onSave();
+      }
+      
+      // Close after a brief delay to show the success toast
+      setTimeout(() => {
+        onClose();
+      }, 500);
     } catch (error) {
       console.error('Failed to save to level:', error);
       showToast(`Failed to save to level: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     }
-    
-    // Call onSave callback if provided
-    if (onSave) {
-      onSave();
-    }
-    
-    onClose();
   };
 
   // Add a new object model
@@ -276,21 +353,125 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
           <div className="w-80 border-r border-gray-700 overflow-y-auto custom-scrollbar p-4 flex flex-col">
             <div className="mb-4">
               <h3 className="text-sm font-semibold text-gray-300 mb-2">Object IDs</h3>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="number"
-                  value={newObjectId}
-                  onChange={(e) => setNewObjectId(e.target.value)}
-                  placeholder="Object ID"
-                  className="flex-1 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-sm"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      addObjectModel();
-                    }
-                  }}
-                />
+              <div className="flex gap-2 mb-2 relative" ref={dropdownRef}>
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={newObjectId}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      setNewObjectId(value);
+                    }}
+                    onFocus={() => setShowDropdown(true)}
+                    placeholder="Object ID"
+                    className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        addObjectModel();
+                        setShowDropdown(false);
+                      } else if (e.key === "Escape") {
+                        setShowDropdown(false);
+                      }
+                    }}
+                  />
+                  
+                  {/* Dropdown */}
+                  {showDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded shadow-lg max-h-80 overflow-y-auto z-50">
+                      {selectedObjects.length > 0 && (
+                        <>
+                          <div className="px-2 py-1 text-xs text-blue-400 border-b border-gray-700 bg-gray-900/50 sticky top-0">
+                            Selected in Editor ({Math.min(10, Array.from(new Set(selectedObjects.map(obj => obj.m_objectId))).length)})
+                          </div>
+                          {dropdownObjectIds.slice(0, Math.min(10, Array.from(new Set(selectedObjects.map(obj => obj.m_objectId))).length)).filter(id => id != null).map((id) => {
+                            const isInEditor = selectedObjects.some(obj => obj.m_objectId === id);
+                            const idStr = String(id);
+                            const alreadyExists = !!objectModels[idStr];
+                            return (
+                              <button
+                                key={id}
+                                onClick={() => {
+                                  const idStr = String(id);
+                                  setNewObjectId(idStr);
+                                  setShowDropdown(false);
+                                }}
+                                disabled={alreadyExists}
+                                className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${
+                                  alreadyExists
+                                    ? 'opacity-50 cursor-not-allowed bg-gray-800'
+                                    : 'hover:bg-gray-700'
+                                } bg-blue-900/20`}
+                              >
+                                <div className="w-8 h-8 bg-gray-900 rounded border border-gray-700 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                  <ObjectSpritePreview objectId={idStr} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-sm text-white">
+                                      {id}
+                                    </span>
+                                    <span className="text-xs text-blue-400">●</span>
+                                    {alreadyExists && (
+                                      <span className="text-xs text-gray-500">(exists)</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                          <div className="px-2 py-1 text-xs text-gray-400 border-b border-gray-700 bg-gray-900/50 sticky top-0">
+                            Next Items
+                          </div>
+                        </>
+                      )}
+                      {dropdownObjectIds.slice(selectedObjects.length > 0 ? Math.min(10, Array.from(new Set(selectedObjects.map(obj => obj.m_objectId))).length) : 0).filter(id => id != null).map((id) => {
+                        const isInEditor = selectedObjects.some(obj => obj.m_objectId === id);
+                        const idStr = String(id);
+                        const alreadyExists = !!objectModels[idStr];
+                        return (
+                          <button
+                            key={id}
+                            onClick={() => {
+                              const idStr = String(id);
+                              setNewObjectId(idStr);
+                              setShowDropdown(false);
+                            }}
+                            disabled={alreadyExists}
+                            className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${
+                              alreadyExists
+                                ? 'opacity-50 cursor-not-allowed bg-gray-800'
+                                : 'hover:bg-gray-700'
+                            } ${isInEditor ? 'bg-blue-900/20' : ''}`}
+                          >
+                            <div className="w-8 h-8 bg-gray-900 rounded border border-gray-700 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                              <ObjectSpritePreview objectId={idStr} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-sm text-white">
+                                  {id}
+                                </span>
+                                {isInEditor && (
+                                  <span className="text-xs text-blue-400">●</span>
+                                )}
+                                {alreadyExists && (
+                                  <span className="text-xs text-gray-500">(exists)</span>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
                 <button
-                  onClick={addObjectModel}
+                  onClick={() => {
+                    addObjectModel();
+                    setShowDropdown(false);
+                  }}
                   className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
                 >
                   +
@@ -585,6 +766,77 @@ function ObjectSprite({ objectId, size = 24 }: { objectId: string; size?: number
       width={size}
       height={size}
       style={{ width: size, height: size }}
+      className="image-rendering-pixelated"
+    />
+  );
+}
+
+// Simpler preview component for dropdown with fallback
+function ObjectSpritePreview({ objectId }: { objectId: string }) {
+  const [hasSprite, setHasSprite] = useState<boolean | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const size = 32;
+    canvas.width = size;
+    canvas.height = size;
+
+    const detailImg = document.createElement("img");
+    const mainImg = document.createElement("img");
+
+    let loadedCount = 0;
+    let hasAnyImage = false;
+
+    const checkLoaded = () => {
+      loadedCount++;
+      if (loadedCount === 2) {
+        ctx.clearRect(0, 0, size, size);
+
+        // Draw main texture
+        if (mainImg.complete && mainImg.naturalWidth > 0) {
+          ctx.drawImage(mainImg, 0, 0, size, size);
+          hasAnyImage = true;
+        }
+
+        // Draw detail texture on top
+        if (detailImg.complete && detailImg.naturalWidth > 0) {
+          ctx.drawImage(detailImg, 0, 0, size, size);
+          hasAnyImage = true;
+        }
+
+        setHasSprite(hasAnyImage);
+      }
+    };
+
+    detailImg.onerror = checkLoaded;
+    mainImg.onerror = checkLoaded;
+    detailImg.onload = checkLoaded;
+    mainImg.onload = checkLoaded;
+
+    detailImg.src = `/gd/objects/detail/${objectId}.png`;
+    mainImg.src = `/gd/objects/main/${objectId}.png`;
+  }, [objectId]);
+
+  if (hasSprite === false) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-gray-500 text-xl">
+        ?
+      </div>
+    );
+  }
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={32}
+      height={32}
+      style={{ width: 32, height: 32 }}
       className="image-rendering-pixelated"
     />
   );
