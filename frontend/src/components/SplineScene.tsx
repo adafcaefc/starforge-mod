@@ -17,6 +17,7 @@ const PLAYER_ROTATION_SCALE = 0;
 const GAME_MODE_EDITOR = 3; // Matches spc::State::Mode::Editor
 const FOLLOW_DISTANCE_SCROLL_BASE = 0.0001;
 const FOLLOW_DISTANCE_SCROLL_SCALE = 0.002;
+const MIN_SCROLL_SENSITIVITY = 0.000005;
 const MIN_CAMERA_DISTANCE = -2;
 const MAX_CAMERA_DISTANCE = 20;
 const DEFAULT_CAMERA_DISTANCE = 6;
@@ -1899,31 +1900,16 @@ export default function SplineScene() {
       const spline = splineRef.current;
       // Only add default segments if spline is still empty (no data from level)
       if (spline.segments.length === 0) {
-        // Create initial spline from provided default data (from spline.json)
-        spline.addSegment(
-          new CubicBezierCurve(
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(3.3476727857354316, -1.2823477290527574, -0.7704321352445345),
-            new THREE.Vector3(12.774514879635667, 5.180145083895724, -15.504650728516243),
-            new THREE.Vector3(6, 0, -15)
-          )
+        // Seed the scene with the user-supplied default spline when nothing has loaded yet
+        const defaultCurve = new CubicBezierCurve(
+          new THREE.Vector3(-1.5435895119281877, 3.1906825413365576, -0.4115749478407258),
+          new THREE.Vector3(13.087417607366804, 5.9791958668292535, -11.981660048657387),
+          new THREE.Vector3(6.919099164601268, 5.067224294028957, -6.483712327427357),
+          new THREE.Vector3(18.829060347334654, 4.949963927833904, -22.643917866773307)
         );
-        spline.addSegment(
-          new CubicBezierCurve(
-            new THREE.Vector3(6, 0, -15),
-            new THREE.Vector3(-0.7745148796356671, -5.180145083895724, -14.495349271483757),
-            new THREE.Vector3(1.1788881208983568, 3.9334638035720317, -19.888953705547856),
-            new THREE.Vector3(5.295503778635329, 4.223476934215563, -22.2714620605434)
-          )
-        );
-        spline.addSegment(
-          new CubicBezierCurve(
-            new THREE.Vector3(5.295503778635329, 4.223476934215563, -22.2714620605434),
-            new THREE.Vector3(9.4121194363723, 4.513490064859095, -24.653970415538943),
-            new THREE.Vector3(9.930131815154375, 13.529333209771652, -31.64966203613991),
-            new THREE.Vector3(3.155616935518708, 8.349188125875928, -31.14501130762367)
-          )
-        );
+        defaultCurve.p1NormalAngle = 0;
+        defaultCurve.p2NormalAngle = 0;
+        spline.addSegment(defaultCurve);
         spline.updateParameterList(100000);
 
         // Calculate length scale factor with default level length of 3000
@@ -1969,17 +1955,29 @@ export default function SplineScene() {
       objectModels: objectModelsDataRef.current,
     };
 
+    const defaultFileName = "StarforgeLevelData";
+    const userInput = window.prompt("Enter a name for the spline JSON file", defaultFileName);
+    if (userInput === null) {
+      showToast("Save cancelled.", "info");
+      return;
+    }
+
+    const trimmedInput = userInput.trim() || defaultFileName;
+    const sanitizedInput = trimmedInput.replace(/[<>:"/\\|?*]/g, "_");
+    const safeName = sanitizedInput.length > 0 ? sanitizedInput : defaultFileName;
+    const fileName = safeName.toLowerCase().endsWith(".json") ? safeName : `${safeName}.json`;
+
     const json = JSON.stringify(levelData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'StarforgeLevelData.json';
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('Level data saved to StarforgeLevelData.json', 'success');
+    showToast(`Level data saved to ${fileName}`, 'success');
   };
 
   const handleLoadSpline = () => {
@@ -2187,7 +2185,8 @@ export default function SplineScene() {
 
       e.preventDefault();
       const currentDistance = cameraControlRef.current.distance;
-      const zoomSensitivity = FOLLOW_DISTANCE_SCROLL_BASE + Math.abs(currentDistance) * FOLLOW_DISTANCE_SCROLL_SCALE;
+      const computedSensitivity = FOLLOW_DISTANCE_SCROLL_BASE + Math.abs(currentDistance) * FOLLOW_DISTANCE_SCROLL_SCALE;
+      const zoomSensitivity = Math.max(MIN_SCROLL_SENSITIVITY, computedSensitivity);
       const nextDistance = THREE.MathUtils.clamp(
         currentDistance + e.deltaY * zoomSensitivity,
         MIN_CAMERA_DISTANCE,
