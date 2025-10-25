@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Stars } from "@react-three/drei";
 import * as THREE from "three";
@@ -502,6 +502,7 @@ function UFOModel({
   gameObjectsRef,
   objectModelsDataRef,
   onGameModeChange,
+  onLevelExit,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -532,6 +533,7 @@ function UFOModel({
     };
   }>;
   onGameModeChange: (isEditorMode: boolean) => void;
+  onLevelExit: () => void;
 }) {
   const modelRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<THREE.Group | null>(null);
@@ -540,6 +542,11 @@ function UFOModel({
   const socketRef = useRef<WebSocket | null>(null);
   const [canvasTexture, setCanvasTexture] = useState<THREE.CanvasTexture | null>(null);
   const prevTangentRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
+  const mouseInScreen = useRef(false);
+  const lastMouseMoveTime = useRef(0);
+  const mouseMoveThrottle = 16;
+  const pendingMouseMove = useRef<{ x: number; y: number } | null>(null);
+  const mouseRafId = useRef<number | null>(null);
 
   const width = 440;
   const height = 240;
@@ -707,6 +714,14 @@ function UFOModel({
                 onGameModeChange(true);
               } else if (eventName === "editor_exit") {
                 onGameModeChange(false);
+              } else if (eventName === "level_exit") {
+                onLevelExit();
+                mouseInScreen.current = false;
+                pendingMouseMove.current = null;
+                if (mouseRafId.current !== null) {
+                  cancelAnimationFrame(mouseRafId.current);
+                  mouseRafId.current = null;
+                }
               }
 
               // Note: level_exit event no longer clears objects
@@ -750,6 +765,17 @@ function UFOModel({
         }
       }
 
+      if (child.isMesh && ["cube007"].includes(child.name)) {
+        if (child.material?.type === "MeshStandardMaterial") {
+          const glowLight = new THREE.PointLight(0xff0000, 0.2, 0.6);
+          glowLight.position.copy(child.position);
+          glowLight.position.x += 0.2;
+          glowLight.position.y += 0.1;
+          glowLight.position.z += 0.4;
+          child.add(glowLight);
+        }
+      }
+
       if (child.isMesh && child.material?.name?.includes("Material.008")) {
         if (child.material.type === "MeshStandardMaterial") {
           child.material.map = canvasTexture;
@@ -759,6 +785,7 @@ function UFOModel({
           child.material.roughness = 0.6;
           child.material.metalness = 0.1;
           child.material.needsUpdate = true;
+          child.userData.isScreen = true;
         }
 
         const screenLight = new THREE.SpotLight(0xffffff, 7, 15, Math.PI / -6, 20, 1);
@@ -774,6 +801,111 @@ function UFOModel({
       }
     });
   }, [canvasTexture, scene]);
+
+  const isScreenIntersection = (intersect: any) => {
+    return intersect?.object?.userData?.isScreen === true;
+  };
+
+  const sendInput = (data: any) => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify(data));
+    }
+  };
+
+  const sendMouseMove = () => {
+    if (pendingMouseMove.current && socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(
+        JSON.stringify({
+          type: "mouse_move",
+          x: pendingMouseMove.current.x,
+          y: pendingMouseMove.current.y,
+        })
+      );
+      pendingMouseMove.current = null;
+    }
+    mouseRafId.current = null;
+  };
+
+  const handleModelPointerDown = (event: any) => {
+    const screenIntersect = event.intersections?.find((intersect: any) => isScreenIntersection(intersect));
+    if (screenIntersect && screenIntersect.uv) {
+      const x = Math.max(0, Math.min(1, screenIntersect.uv.x));
+      const y = Math.max(0, Math.min(1, 1 - screenIntersect.uv.y));
+      const button = event.nativeEvent?.button ?? 0;
+      sendInput({ type: "mouse_down", button, x, y });
+    }
+  };
+
+  const handleModelPointerUp = (event: any) => {
+    const screenIntersect = event.intersections?.find((intersect: any) => isScreenIntersection(intersect));
+    if (screenIntersect && screenIntersect.uv) {
+      const x = Math.max(0, Math.min(1, screenIntersect.uv.x));
+      const y = Math.max(0, Math.min(1, 1 - screenIntersect.uv.y));
+      const button = event.nativeEvent?.button ?? 0;
+      sendInput({ type: "mouse_up", button, x, y });
+    }
+  };
+
+  const handleModelPointerMove = (event: any) => {
+    const now = Date.now();
+    if (now - lastMouseMoveTime.current < mouseMoveThrottle) {
+      return;
+    }
+    lastMouseMoveTime.current = now;
+
+    const screenIntersect = event.intersections?.find((intersect: any) => isScreenIntersection(intersect));
+    if (screenIntersect && screenIntersect.uv && mouseInScreen.current) {
+      const x = Math.max(0, Math.min(1, screenIntersect.uv.x));
+      const y = Math.max(0, Math.min(1, 1 - screenIntersect.uv.y));
+
+      pendingMouseMove.current = { x, y };
+      if (mouseRafId.current === null) {
+        mouseRafId.current = requestAnimationFrame(sendMouseMove);
+      }
+    }
+  };
+
+  const handleModelPointerEnter = () => {
+    mouseInScreen.current = true;
+  };
+
+  const handleModelPointerLeave = () => {
+    mouseInScreen.current = false;
+    pendingMouseMove.current = null;
+    if (mouseRafId.current !== null) {
+      cancelAnimationFrame(mouseRafId.current);
+      mouseRafId.current = null;
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!mouseInScreen.current) return;
+      sendInput({ type: "key_down", key: e.keyCode, code: e.code });
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (!mouseInScreen.current) return;
+      sendInput({ type: "key_up", key: e.keyCode, code: e.code });
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (mouseRafId.current !== null) {
+        cancelAnimationFrame(mouseRafId.current);
+        mouseRafId.current = null;
+      }
+    };
+  }, []);
 
   useFrame((state) => {
     if (modelRef.current && splineRef.current.segments.length > 0) {
@@ -859,7 +991,18 @@ function UFOModel({
   });
 
   if (!scene) return null;
-  return <primitive ref={modelRef} object={scene} scale={0.75} />;
+  return (
+    <primitive
+      ref={modelRef}
+      object={scene}
+      scale={0.75}
+      onPointerDown={handleModelPointerDown}
+      onPointerUp={handleModelPointerUp}
+      onPointerMove={handleModelPointerMove}
+      onPointerEnter={handleModelPointerEnter}
+      onPointerLeave={handleModelPointerLeave}
+    />
+  );
 }
 
 // Spline visualization
@@ -1540,6 +1683,7 @@ function Scene({
   onGameModeChange,
   isEditorMode,
   editorCameraRef,
+  onLevelExit,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -1589,6 +1733,7 @@ function Scene({
     yaw: number;
     pitch: number;
   }>;
+  onLevelExit: () => void;
 }) {
   return (
     <>
@@ -1597,21 +1742,25 @@ function Scene({
       <pointLight position={[-10, -10, -10]} intensity={0.5} color="#4169E1" />
       <Stars radius={300} depth={60} count={1000} factor={7} saturation={0} />
 
-      <SplineVisualization
-        splineRef={splineRef}
-        selectedPointRef={selectedPointRef}
-        isDraggingPointRef={isDraggingPointRef}
-        playerStateRef={playerStateRef}
-      />
-      <SplinePointDragger
-        splineRef={splineRef}
-        selectedPointRef={selectedPointRef}
-        isDraggingPointRef={isDraggingPointRef}
-        dragPlaneRef={dragPlaneRef}
-        raycasterRef={raycasterRef}
-        mouseRef={mouseRef}
-        playerStateRef={playerStateRef}
-      />
+      {isEditorMode && (
+        <SplineVisualization
+          splineRef={splineRef}
+          selectedPointRef={selectedPointRef}
+          isDraggingPointRef={isDraggingPointRef}
+          playerStateRef={playerStateRef}
+        />
+      )}
+      {isEditorMode && (
+        <SplinePointDragger
+          splineRef={splineRef}
+          selectedPointRef={selectedPointRef}
+          isDraggingPointRef={isDraggingPointRef}
+          dragPlaneRef={dragPlaneRef}
+          raycasterRef={raycasterRef}
+          mouseRef={mouseRef}
+          playerStateRef={playerStateRef}
+        />
+      )}
       <UFOModel
         splineRef={splineRef}
         playerStateRef={playerStateRef}
@@ -1619,6 +1768,7 @@ function Scene({
         gameObjectsRef={gameObjectsRef}
         objectModelsDataRef={objectModelsDataRef}
         onGameModeChange={onGameModeChange}
+        onLevelExit={onLevelExit}
       />
       <GameObjectsField
         gameObjectsRef={gameObjectsRef}
@@ -1699,6 +1849,14 @@ export default function SplineScene() {
     panY: BASE_PAN_Y,
   });
 
+  const resetCockpitCamera = useCallback(() => {
+    cameraControlRef.current.distance = DEFAULT_CAMERA_DISTANCE;
+    cameraControlRef.current.theta = BASE_ORBIT_YAW;
+    cameraControlRef.current.phi = BASE_ORBIT_PHI;
+    cameraControlRef.current.panX = BASE_PAN_X;
+    cameraControlRef.current.panY = BASE_PAN_Y;
+  }, []);
+
   // Stores the free camera pose that is active while the game is in editor mode
   const editorCameraRef = useRef({
     position: new THREE.Vector3(0, 3, 10),
@@ -1713,13 +1871,18 @@ export default function SplineScene() {
   // Reset cockpit camera offsets when the editor is closed so the view snaps back to first person
   useEffect(() => {
     if (wasEditorModeRef.current && !isEditorMode) {
-      cameraControlRef.current.distance = DEFAULT_CAMERA_DISTANCE;
-      cameraControlRef.current.theta = BASE_ORBIT_YAW;
-      cameraControlRef.current.phi = BASE_ORBIT_PHI;
-      cameraControlRef.current.panX = BASE_PAN_X;
-      cameraControlRef.current.panY = BASE_PAN_Y;
+      resetCockpitCamera();
     }
     wasEditorModeRef.current = isEditorMode;
+  }, [isEditorMode, resetCockpitCamera]);
+
+  useEffect(() => {
+    if (isEditorMode) {
+      setShowUI(true);
+    } else {
+      setShowUI(false);
+      setShowObjectModelsEditor(false);
+    }
   }, [isEditorMode]);
 
   // Spline editing state
@@ -2050,15 +2213,17 @@ export default function SplineScene() {
 
   return (
     <div className="relative bg-black h-screen w-screen">
-      <button
-        className="fixed top-4 right-4 z-30 bg-black/70 hover:bg-black/90 text-white px-3 py-2 rounded-lg transition-colors"
-        onClick={() => setShowUI((v) => !v)}
-        title={showUI ? "Hide UI" : "Show UI"}
-      >
-        {showUI ? "👁️ Hide UI" : "👁️‍🗨️ Show UI"}
-      </button>
+      {isEditorMode && (
+        <button
+          className="fixed top-4 right-4 z-30 bg-black/70 hover:bg-black/90 text-white px-3 py-2 rounded-lg transition-colors"
+          onClick={() => setShowUI((v) => !v)}
+          title={showUI ? "Hide UI" : "Show UI"}
+        >
+          {showUI ? "👁️ Hide UI" : "👁️‍🗨️ Show UI"}
+        </button>
+      )}
       <div className="fixed inset-0 w-full h-full">
-        {showUI && (
+        {isEditorMode && showUI && (
           <SplineEditorControls
             onAddSegment={handleAddSegment}
             onRemoveSegment={handleRemoveSegment}
@@ -2086,6 +2251,7 @@ export default function SplineScene() {
             onGameModeChange={setIsEditorMode}
             isEditorMode={isEditorMode}
             editorCameraRef={editorCameraRef}
+            onLevelExit={resetCockpitCamera}
           />
           <OrbitControls
             enabled={false}
@@ -2096,7 +2262,7 @@ export default function SplineScene() {
           />
         </Canvas>
       </div>
-      {showObjectModelsEditor && (
+      {isEditorMode && showObjectModelsEditor && (
         <ObjectModelsEditor
           objectModelsDataRef={objectModelsDataRef}
           splineRef={splineRef}
