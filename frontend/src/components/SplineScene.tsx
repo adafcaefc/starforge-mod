@@ -410,7 +410,7 @@ function GameObject({
     }
 
     const modelPath = `/models/objects/${selectedModel}`;
-    
+
     // Use cached loader and clone the model
     loadModel(modelPath)
       .then((originalScene) => {
@@ -421,7 +421,7 @@ function GameObject({
       .catch((error) => {
         console.error(`Failed to load ${modelPath}:`, error);
       });
-    
+
     // Cleanup function to dispose of the cloned scene when model changes or component unmounts
     return () => {
       if (scene) {
@@ -450,7 +450,7 @@ function GameObject({
         const lookAtTarget = posVec.clone().add(tangent);
         groupRef.current.lookAt(lookAtTarget);
         groupRef.current.up.copy(up);
-        
+
         // Apply the game object's rotation around the tangent axis
         if (rotation !== 0) {
           groupRef.current.rotateOnAxis(tangent.clone().normalize(), (rotation * Math.PI) / 180);
@@ -460,7 +460,7 @@ function GameObject({
       // Get scale from objectModels data if available
       const modelScaleX = objectModelData?.scaleX || 1.0;
       const modelScaleY = objectModelData?.scaleY || 1.0;
-      
+
       const baseScale = 0.12;
       groupRef.current.scale.set(
         scale[0] * baseScale * modelScaleX,
@@ -598,7 +598,7 @@ function UFOModel({
         } else if (typeof event.data === "string") {
           try {
             const parsedData = JSON.parse(event.data);
-            
+
             // Handle state messages
             if (parsedData.type === "state") {
               const stateName = parsedData.name;
@@ -607,7 +607,7 @@ function UFOModel({
               if (stateName === "level_data") {
                 // Reset UFO tangent tracking when new level data arrives
                 prevTangentRef.current.set(0, 0, 1);
-                
+
                 // Update level data and game objects
                 if (stateData.m_levelLength !== undefined) {
                   playerStateRef.current.levelLength = stateData.m_levelLength || 3000;
@@ -616,7 +616,7 @@ function UFOModel({
                   const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
                   lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
                 }
-                
+
                 // Always update game objects whenever level_data is received
                 // If the new level data has an empty game objects array, clear all objects
                 if (stateData.m_gameObjects && Array.isArray(stateData.m_gameObjects)) {
@@ -638,12 +638,12 @@ function UFOModel({
                     }));
                   }
                 }
-                
+
                 // Load spline data automatically when received from level
                 if (stateData.m_levelData && stateData.m_levelData.spline && stateData.m_levelData.spline.segments) {
                   const spline = splineRef.current;
                   spline.segments = [];
-                  
+
                   for (const segmentData of stateData.m_levelData.spline.segments) {
                     const segment = new CubicBezierCurve(
                       new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
@@ -655,17 +655,17 @@ function UFOModel({
                     segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
                     spline.addSegment(segment);
                   }
-                  
+
                   spline.updateParameterList(100000);
-                  
+
                   // Recalculate length scale factor
                   const splineLength = spline.length(1000);
                   const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
                   lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
-                  
+
                   console.log('Spline loaded automatically from level data');
                 }
-                
+
                 // Update object models data
                 if (stateData.m_levelData && stateData.m_levelData.objectModels) {
                   objectModelsDataRef.current = stateData.m_levelData.objectModels;
@@ -781,12 +781,12 @@ function UFOModel({
 
       // Calculate progress (0 to 1) - player reaches 100% at level length
       const progress = Math.min(1, Math.max(0, playerX / effectiveLevelLength));
-      
+
       // Reset tangent tracking if player restarted (near beginning of level)
       if (playerX < 100) {
         prevTangentRef.current.set(0, 0, 1);
       }
-      
+
       // Map progress to spline length
       const targetLength = progress * splineLength;
 
@@ -848,12 +848,12 @@ function UFOModel({
 }
 
 // Spline visualization
-function SplineVisualization({ 
+function SplineVisualization({
   splineRef,
   selectedPointRef,
   isDraggingPointRef,
   playerStateRef,
-}: { 
+}: {
   splineRef: React.MutableRefObject<Spline>;
   selectedPointRef: React.MutableRefObject<number | null>;
   isDraggingPointRef: React.MutableRefObject<boolean>;
@@ -867,7 +867,7 @@ function SplineVisualization({
   const lineRef = useRef<THREE.Line>(null);
   const controlPointsRef = useRef<THREE.Group>(null);
   const baseSplineLengthRef = useRef<number>(0);
-  
+
   // Reusable geometries and materials to avoid recreation every frame
   const controlPointGeometriesRef = useRef<{
     endpointGeometry: THREE.SphereGeometry;
@@ -881,15 +881,15 @@ function SplineVisualization({
     controlPointGeometriesRef.current = {
       endpointGeometry: new THREE.SphereGeometry(0.15, 16, 16),
       handleGeometry: new THREE.SphereGeometry(0.1, 16, 16),
-      endpointMaterial: new THREE.MeshStandardMaterial({ 
-        color: 0xff0000, 
-        emissive: 0xff0000, 
-        emissiveIntensity: 0.3 
+      endpointMaterial: new THREE.MeshStandardMaterial({
+        color: 0xff0000,
+        emissive: 0xff0000,
+        emissiveIntensity: 0.3
       }),
-      handleMaterial: new THREE.MeshStandardMaterial({ 
-        color: 0x00ff00, 
-        emissive: 0x00ff00, 
-        emissiveIntensity: 0.3 
+      handleMaterial: new THREE.MeshStandardMaterial({
+        color: 0x00ff00,
+        emissive: 0x00ff00,
+        emissiveIntensity: 0.3
       }),
     };
 
@@ -944,10 +944,10 @@ function SplineVisualization({
     // Update control points - reuse existing meshes instead of recreating
     if (controlPointsRef.current) {
       const { endpointGeometry, handleGeometry, endpointMaterial, handleMaterial } = controlPointGeometriesRef.current;
-      
+
       // Calculate expected number of control points
       const expectedPoints = spline.segments.length * 3 + 1; // Each segment has p1, m1, m2, plus final p2
-      
+
       // Remove excess meshes if we have too many
       while (controlPointsRef.current.children.length > expectedPoints) {
         const mesh = controlPointsRef.current.children[controlPointsRef.current.children.length - 1];
@@ -955,7 +955,7 @@ function SplineVisualization({
       }
 
       let pointIndex = 0;
-      
+
       // Helper function to update or create mesh
       const updateOrCreateMesh = (pos: THREE.Vector3, isEndpoint: boolean) => {
         let mesh: THREE.Mesh;
@@ -973,12 +973,12 @@ function SplineVisualization({
         }
         mesh.position.set(pos.x * xScale, pos.y, pos.z);
         mesh.userData.pointIndex = pointIndex;
-        
+
         // Handle highlighting
         const isSelected = selectedPointRef.current === pointIndex;
         const material = mesh.material as THREE.MeshStandardMaterial;
         material.emissiveIntensity = isSelected ? 0.8 : 0.3;
-        
+
         pointIndex++;
       };
 
@@ -1182,22 +1182,22 @@ function GameObjectsField({
   ): { position: [number, number, number]; tangent: THREE.Vector3; normal: THREE.Vector3 } => {
     const spline = splineRef.current;
     if (spline.segments.length === 0) {
-      return { 
-        position: [0, 0, 0], 
-        tangent: new THREE.Vector3(0, 0, 1), 
-        normal: new THREE.Vector3(0, 1, 0) 
+      return {
+        position: [0, 0, 0],
+        tangent: new THREE.Vector3(0, 0, 1),
+        normal: new THREE.Vector3(0, 1, 0)
       };
     }
 
     const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
-    
+
     // Calculate X-scale based on level length
     const defaultLevelLength = 3000;
     const xScale = effectiveLevelLength / defaultLevelLength;
-    
+
     // Calculate progress (0 to 1) - same as UFO movement
     const progress = Math.min(1, Math.max(0, gameX / effectiveLevelLength));
-    
+
     // Map progress to spline length
     const splineLength = spline.length(100);
     const targetLength = progress * splineLength;
@@ -1214,7 +1214,7 @@ function GameObjectsField({
     // Add Y offset (scaled to match scene)
     const yOffset = gameY / 100;
 
-    return { 
+    return {
       position: [scaledX, position.y + yOffset, position.z],
       tangent,
       normal
@@ -1391,13 +1391,13 @@ function AnimatedCamera({
     const pitchQuat = new THREE.Quaternion().setFromAxisAngle(yawAdjustedRight, pitchOffset);
     const viewAdjustment = new THREE.Quaternion().copy(yawQuat).multiply(pitchQuat);
 
-  const viewForward = scaledForward.clone().applyQuaternion(viewAdjustment).normalize();
-  let viewUp = upVector.clone().applyQuaternion(viewAdjustment).normalize();
-  const viewRight = new THREE.Vector3().crossVectors(viewForward, viewUp).normalize();
-  viewUp = new THREE.Vector3().crossVectors(viewRight, viewForward).normalize();
-  viewUp.negate();
+    const viewForward = scaledForward.clone().applyQuaternion(viewAdjustment).normalize();
+    let viewUp = upVector.clone().applyQuaternion(viewAdjustment).normalize();
+    const viewRight = new THREE.Vector3().crossVectors(viewForward, viewUp).normalize();
+    viewUp = new THREE.Vector3().crossVectors(viewRight, viewForward).normalize();
+    viewUp.negate();
 
-  const baseFollowDistance = 0.17 + distance * 0.05;
+    const baseFollowDistance = 0.17 + distance * 0.05;
     const cockpitVerticalOffset = 0.3;
 
     const desiredPosition = scaledUfoPosition
@@ -1406,7 +1406,7 @@ function AnimatedCamera({
       .add(viewUp.clone().multiplyScalar(cockpitVerticalOffset + panY))
       .add(viewRight.clone().multiplyScalar(panX));
 
-  const lerpFactor = 1;
+    const lerpFactor = 1;
     state.camera.position.lerp(desiredPosition, lerpFactor);
 
     const lookAheadDistance = 50;
@@ -1576,9 +1576,9 @@ function Scene({
       <pointLight position={[10, 10, 10]} intensity={1} />
       <pointLight position={[-10, -10, -10]} intensity={0.5} color="#4169E1" />
       <Stars radius={300} depth={60} count={1000} factor={7} saturation={0} />
-      
-      <SplineVisualization 
-        splineRef={splineRef} 
+
+      <SplineVisualization
+        splineRef={splineRef}
         selectedPointRef={selectedPointRef}
         isDraggingPointRef={isDraggingPointRef}
         playerStateRef={playerStateRef}
@@ -1628,10 +1628,10 @@ export default function SplineScene() {
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: "success" | "error" | "info" }>>([]);
   const [isEditorMode, setIsEditorMode] = useState(false);
   const toastIdCounter = useRef(0);
-  
+
   // Track object models version to force re-render when models change
   const [objectModelsVersion, setObjectModelsVersion] = useState(0);
-  
+
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     const id = toastIdCounter.current++;
     setToasts((prev) => [...prev, { id, message, type }]);
@@ -1639,7 +1639,7 @@ export default function SplineScene() {
       setToasts((prev) => prev.filter((toast) => toast.id !== id));
     }, 3000);
   };
-  
+
   const splineRef = useRef<Spline>(new Spline());
   const playerStateRef = useRef({
     p1x: 0,
@@ -1742,7 +1742,7 @@ export default function SplineScene() {
   const handleAddSegment = () => {
     splineRef.current.addNewCurveToSpline();
     splineRef.current.updateParameterList(100000);
-    
+
     // Recalculate length scale factor
     const splineLength = splineRef.current.length(1000);
     const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
@@ -1752,7 +1752,7 @@ export default function SplineScene() {
   const handleRemoveSegment = () => {
     splineRef.current.removeLastSegment();
     splineRef.current.updateParameterList(100000);
-    
+
     // Recalculate length scale factor
     const splineLength = splineRef.current.length(1000);
     const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
@@ -1772,7 +1772,7 @@ export default function SplineScene() {
       })),
       objectModels: objectModelsDataRef.current,
     };
-    
+
     const json = JSON.stringify(levelData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1793,17 +1793,17 @@ export default function SplineScene() {
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      
+
       const reader = new FileReader();
       reader.onload = (event) => {
         try {
           const json = event.target?.result as string;
           const levelData = JSON.parse(json);
-          
+
           // Clear current spline
           const spline = splineRef.current;
           spline.segments = [];
-          
+
           // Load segments from JSON
           if (levelData.segments && Array.isArray(levelData.segments)) {
             for (const segmentData of levelData.segments) {
@@ -1818,19 +1818,19 @@ export default function SplineScene() {
               spline.addSegment(segment);
             }
           }
-          
+
           // Load object models if present
           if (levelData.objectModels) {
             objectModelsDataRef.current = levelData.objectModels;
           }
-          
+
           spline.updateParameterList(100000);
-          
+
           // Recalculate length scale factor
           const splineLength = spline.length(1000);
           const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
           lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
-          
+
           showToast('Level data loaded successfully from JSON!', 'success');
           console.log('Level data loaded from JSON:', levelData);
         } catch (error) {
@@ -2054,7 +2054,7 @@ export default function SplineScene() {
         </Canvas>
       </div>
       {showObjectModelsEditor && (
-        <ObjectModelsEditor 
+        <ObjectModelsEditor
           objectModelsDataRef={objectModelsDataRef}
           splineRef={splineRef}
           onClose={() => setShowObjectModelsEditor(false)}
@@ -2064,19 +2064,18 @@ export default function SplineScene() {
           }}
         />
       )}
-      
+
       {/* Toast Notifications */}
       <div className="fixed bottom-4 right-4 z-[60] space-y-2">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`px-4 py-3 rounded-lg shadow-lg border backdrop-blur-sm animate-slide-in-right ${
-              toast.type === "success"
+            className={`px-4 py-3 rounded-lg shadow-lg border backdrop-blur-sm animate-slide-in-right ${toast.type === "success"
                 ? "bg-green-900/90 border-green-600 text-green-100"
                 : toast.type === "error"
-                ? "bg-red-900/90 border-red-600 text-red-100"
-                : "bg-blue-900/90 border-blue-600 text-blue-100"
-            }`}
+                  ? "bg-red-900/90 border-red-600 text-red-100"
+                  : "bg-blue-900/90 border-blue-600 text-blue-100"
+              }`}
           >
             {toast.message}
           </div>
