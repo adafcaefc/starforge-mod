@@ -14,6 +14,7 @@ const modelCache = new Map<string, Promise<THREE.Group>>();
 
 // Tune this to control how strongly the player's rotation affects the UFO and camera
 const PLAYER_ROTATION_SCALE = 0.25;
+const GAME_MODE_EDITOR = 3; // Matches spc::State::Mode::Editor
 
 // Helper function to dispose of Three.js objects
 function disposeObject(obj: THREE.Object3D) {
@@ -491,6 +492,7 @@ function UFOModel({
   lengthScaleFactorRef,
   gameObjectsRef,
   objectModelsDataRef,
+  onGameModeChange,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -520,6 +522,7 @@ function UFOModel({
       modelTextures: string[];
     };
   }>;
+  onGameModeChange: (isEditorMode: boolean) => void;
 }) {
   const modelRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<THREE.Group | null>(null);
@@ -666,6 +669,10 @@ function UFOModel({
                 // Update object models data
                 if (stateData.m_levelData && stateData.m_levelData.objectModels) {
                   objectModelsDataRef.current = stateData.m_levelData.objectModels;
+                }
+              } else if (stateName === "game_state") {
+                if (typeof stateData.m_mode === "number") {
+                  onGameModeChange(stateData.m_mode === GAME_MODE_EDITOR);
                 }
               } else if (stateName === "live_level_data") {
                 // Update live player data
@@ -1243,6 +1250,8 @@ function AnimatedCamera({
   playerStateRef,
   lengthScaleFactorRef,
   cameraControlRef,
+  isEditorMode,
+  editorCameraRef,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -1259,8 +1268,69 @@ function AnimatedCamera({
     panX: number;
     panY: number;
   }>;
+  isEditorMode: boolean;
+  editorCameraRef: React.MutableRefObject<{
+    position: THREE.Vector3;
+    yaw: number;
+    pitch: number;
+  }>;
 }) {
+  const editorInitializedRef = useRef(false);
+
   useFrame((state) => {
+    const controls = state.controls as any;
+
+    if (isEditorMode) {
+      if (!editorInitializedRef.current) {
+        editorCameraRef.current.position.copy(state.camera.position);
+        const currentForward = new THREE.Vector3();
+        state.camera.getWorldDirection(currentForward);
+        editorCameraRef.current.yaw = Math.atan2(currentForward.x, currentForward.z);
+        editorCameraRef.current.pitch = Math.asin(
+          THREE.MathUtils.clamp(currentForward.y, -1, 1)
+        );
+        editorInitializedRef.current = true;
+      }
+
+      const clampedPitch = THREE.MathUtils.clamp(
+        editorCameraRef.current.pitch,
+        -Math.PI / 2 + 0.01,
+        Math.PI / 2 - 0.01
+      );
+      editorCameraRef.current.pitch = clampedPitch;
+
+      const cosPitch = Math.cos(clampedPitch);
+      const forward = new THREE.Vector3(
+        Math.sin(editorCameraRef.current.yaw) * cosPitch,
+        Math.sin(clampedPitch),
+        Math.cos(editorCameraRef.current.yaw) * cosPitch
+      ).normalize();
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      let right = new THREE.Vector3().crossVectors(forward, worldUp);
+      if (right.lengthSq() < 1e-6) {
+        right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(1, 0, 0));
+      }
+      right.normalize();
+      const upVector = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+      const target = editorCameraRef.current.position.clone().add(forward);
+      state.camera.position.copy(editorCameraRef.current.position);
+      state.camera.up.copy(upVector);
+      state.camera.lookAt(target);
+
+      if (controls) {
+        if (controls.target) {
+          controls.target.copy(target);
+        }
+        if (typeof controls.update === "function") {
+          controls.update();
+        }
+      }
+      return;
+    }
+
+    editorInitializedRef.current = false;
+
     const spline = splineRef.current;
     if (spline.segments.length === 0) return;
 
@@ -1347,7 +1417,6 @@ function AnimatedCamera({
     state.camera.quaternion.slerp(targetQuaternion, lerpFactor);
     state.camera.up.lerp(viewUp, lerpFactor);
 
-    const controls = state.controls as any;
     if (controls && controls.target) {
       controls.target.copy(lookTarget);
       controls.update();
@@ -1448,6 +1517,9 @@ function Scene({
   mouseRef,
   objectModelsDataRef,
   objectModelsVersion,
+  onGameModeChange,
+  isEditorMode,
+  editorCameraRef,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -1490,6 +1562,13 @@ function Scene({
     };
   }>;
   objectModelsVersion: number;
+  onGameModeChange: (isEditorMode: boolean) => void;
+  isEditorMode: boolean;
+  editorCameraRef: React.MutableRefObject<{
+    position: THREE.Vector3;
+    yaw: number;
+    pitch: number;
+  }>;
 }) {
   return (
     <>
@@ -1519,6 +1598,7 @@ function Scene({
         lengthScaleFactorRef={lengthScaleFactorRef}
         gameObjectsRef={gameObjectsRef}
         objectModelsDataRef={objectModelsDataRef}
+        onGameModeChange={onGameModeChange}
       />
       <GameObjectsField
         gameObjectsRef={gameObjectsRef}
@@ -1533,6 +1613,8 @@ function Scene({
         playerStateRef={playerStateRef}
         lengthScaleFactorRef={lengthScaleFactorRef}
         cameraControlRef={cameraControlRef}
+        isEditorMode={isEditorMode}
+        editorCameraRef={editorCameraRef}
       />
       <Environment preset="night" />
     </>
@@ -1544,6 +1626,7 @@ export default function SplineScene() {
   const [showUI, setShowUI] = useState(true);
   const [showObjectModelsEditor, setShowObjectModelsEditor] = useState(false);
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: "success" | "error" | "info" }>>([]);
+  const [isEditorMode, setIsEditorMode] = useState(false);
   const toastIdCounter = useRef(0);
   
   // Track object models version to force re-render when models change
@@ -1596,7 +1679,15 @@ export default function SplineScene() {
     panY: 0,
   });
 
-  const [, setCameraControl] = useState(cameraControlRef.current);
+  // Stores the free camera pose that is active while the game is in editor mode
+  const editorCameraRef = useRef({
+    position: new THREE.Vector3(0, 3, 10),
+    yaw: 0,
+    pitch: 0,
+  });
+
+  // Tracks whether the editor camera is rotating or panning during a drag
+  const cameraDragModeRef = useRef<"rotate" | "pan" | null>(null);
 
   // Spline editing state
   const selectedPointRef = useRef<number | null>(null);
@@ -1792,25 +1883,49 @@ export default function SplineScene() {
   };
 
   // Camera controls (same as SpaceshipScene)
-  const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
-  const isPanningRef = useRef(false);
 
   useEffect(() => {
+    cameraDragModeRef.current = null;
+
+    const getEditorDirections = () => {
+      const { yaw } = editorCameraRef.current;
+      const clampedPitch = THREE.MathUtils.clamp(
+        editorCameraRef.current.pitch,
+        -Math.PI / 2 + 0.01,
+        Math.PI / 2 - 0.01
+      );
+      editorCameraRef.current.pitch = clampedPitch;
+
+      const cosPitch = Math.cos(clampedPitch);
+      const forward = new THREE.Vector3(
+        Math.sin(yaw) * cosPitch,
+        Math.sin(clampedPitch),
+        Math.cos(yaw) * cosPitch
+      ).normalize();
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      let right = new THREE.Vector3().crossVectors(forward, worldUp);
+      if (right.lengthSq() < 1e-6) {
+        right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(1, 0, 0));
+      }
+      right.normalize();
+      const cameraUp = new THREE.Vector3().crossVectors(right, forward).normalize();
+      return { forward, right, cameraUp };
+    };
+
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
-        // Left click - check for control point selection
         const rect = (e.target as HTMLElement).getBoundingClientRect?.();
         if (rect) {
           mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
           mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         }
-        // Selection will be handled in the canvas click event
       } else if (e.button === 2) {
-        // Right click - camera controls
+        if (!isEditorMode) {
+          return;
+        }
         e.preventDefault();
-        isDraggingRef.current = true;
-        isPanningRef.current = e.shiftKey;
+        cameraDragModeRef.current = e.shiftKey ? "pan" : "rotate";
         lastMousePosRef.current = { x: e.clientX, y: e.clientY };
       }
     };
@@ -1822,37 +1937,39 @@ export default function SplineScene() {
         mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       }
 
-      if (isDraggingRef.current) {
-        const deltaX = e.clientX - lastMousePosRef.current.x;
-        const deltaY = e.clientY - lastMousePosRef.current.y;
-
-        if (e.shiftKey || isPanningRef.current) {
-          const panSensitivity = 0.005 + cameraControlRef.current.distance * 0.01;
-          cameraControlRef.current.panX -= deltaX * panSensitivity;
-          cameraControlRef.current.panY += deltaY * panSensitivity;
-        } else {
-          const orbitSensitivity = 0.01;
-          cameraControlRef.current.theta -= deltaX * orbitSensitivity;
-          cameraControlRef.current.phi -= deltaY * orbitSensitivity;
-          cameraControlRef.current.phi = Math.max(
-            0.1,
-            Math.min(Math.PI - 0.1, cameraControlRef.current.phi)
-          );
-        }
-
-        setCameraControl({ ...cameraControlRef.current });
-        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+      if (!isEditorMode || cameraDragModeRef.current === null) {
+        return;
       }
+
+      const deltaX = e.clientX - lastMousePosRef.current.x;
+      const deltaY = e.clientY - lastMousePosRef.current.y;
+
+      if (cameraDragModeRef.current === "rotate") {
+        const orbitSensitivity = 0.005;
+        editorCameraRef.current.yaw -= deltaX * orbitSensitivity;
+        editorCameraRef.current.pitch -= deltaY * orbitSensitivity;
+        editorCameraRef.current.pitch = THREE.MathUtils.clamp(
+          editorCameraRef.current.pitch,
+          -Math.PI / 2 + 0.01,
+          Math.PI / 2 - 0.01
+        );
+      } else {
+        const panSensitivity = 0.01;
+        const { right, cameraUp } = getEditorDirections();
+        editorCameraRef.current.position
+          .addScaledVector(right, -deltaX * panSensitivity)
+          .addScaledVector(cameraUp, deltaY * panSensitivity);
+      }
+
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
     };
 
     const handleMouseUp = (e: MouseEvent) => {
       if (e.button === 0) {
-        // Left mouse up - release dragging
         isDraggingPointRef.current = false;
         dragPlaneRef.current = null;
       } else if (e.button === 2) {
-        isDraggingRef.current = false;
-        isPanningRef.current = false;
+        cameraDragModeRef.current = null;
       }
     };
 
@@ -1861,14 +1978,16 @@ export default function SplineScene() {
     };
 
     const handleWheel = (e: WheelEvent) => {
+      if (!isEditorMode) {
+        return;
+      }
       e.preventDefault();
-      const zoomSensitivity = 0.002 + cameraControlRef.current.distance * 0.02;
-      cameraControlRef.current.distance += e.deltaY * zoomSensitivity;
-      cameraControlRef.current.distance = Math.max(
-        0,
-        Math.min(10, cameraControlRef.current.distance)
+      const { forward } = getEditorDirections();
+      const zoomSensitivity = 0.02;
+      editorCameraRef.current.position.addScaledVector(
+        forward,
+        -e.deltaY * zoomSensitivity
       );
-      setCameraControl({ ...cameraControlRef.current });
     };
 
     window.addEventListener("mousedown", handleMouseDown);
@@ -1884,7 +2003,7 @@ export default function SplineScene() {
       window.removeEventListener("contextmenu", handleContextMenu);
       window.removeEventListener("wheel", handleWheel);
     };
-  }, []);
+  }, [isEditorMode, cameraDragModeRef, dragPlaneRef, editorCameraRef, isDraggingPointRef, mouseRef]);
 
   return (
     <div className="relative bg-black h-screen w-screen">
@@ -1921,8 +2040,12 @@ export default function SplineScene() {
             mouseRef={mouseRef}
             objectModelsDataRef={objectModelsDataRef}
             objectModelsVersion={objectModelsVersion}
+            onGameModeChange={setIsEditorMode}
+            isEditorMode={isEditorMode}
+            editorCameraRef={editorCameraRef}
           />
           <OrbitControls
+            enabled={false}
             enableZoom={false}
             enablePan={false}
             enableRotate={false}
