@@ -807,7 +807,7 @@ function UFOModel({
       const scaledPosition = new THREE.Vector3(position.x * xScale, position.y, position.z);
 
       // Add player Y offset (scaled down to match scene scale)
-      const yOffset = playerY / 100;
+      const yOffset = (playerY - 30) / 100;
 
       // Position UFO along spline with Y offset
       modelRef.current.position.copy(scaledPosition);
@@ -1398,7 +1398,7 @@ function AnimatedCamera({
   viewUp.negate();
 
   const baseFollowDistance = 0.17 + distance * 0.05;
-    const cockpitVerticalOffset = 0.65;
+    const cockpitVerticalOffset = 0.3;
 
     const desiredPosition = scaledUfoPosition
       .clone()
