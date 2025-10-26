@@ -628,10 +628,9 @@ class $modify(MyMenuLayer, MenuLayer) {
         // check whether socket connection exist before opening a new web window
         if (spc::State::get()->m_server->getConnectionCount() == 0u) {
             spcOpenWebserverLink();
+            // play welcome sound
+            const auto soundPath = spc::State::get()->getResourcesPath() / "sound" / "welcome.wav";
+            FMODAudioEngine::sharedEngine()->playEffect(soundPath.string());
         }
-
-        // play welcome sound
-        const auto soundPath = spc::State::get()->getResourcesPath() / "sound" / "welcome.wav";
-        FMODAudioEngine::sharedEngine()->playEffect(soundPath.string());
     }
 };
