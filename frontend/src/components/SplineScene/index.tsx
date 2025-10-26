@@ -8,7 +8,7 @@ import { OrbitControls } from "@react-three/drei";
 
 import { Scene } from "./Scene";
 import { SplineEditorControls } from "./SplineEditorControls";
-import { CubicBezierCurve, Spline } from "./geometry";
+import { CubicBezierCurve, Spline, createDefaultSplineSegment } from "./geometry";
 import {
   BackendConfig,
   BackendConfigState,
@@ -199,15 +199,7 @@ export default function SplineScene() {
     const timeout = setTimeout(() => {
       const spline = splineRef.current;
       if (spline.segments.length === 0) {
-        const defaultCurve = new CubicBezierCurve(
-          new THREE.Vector3(-1.5435895119281877, 3.1906825413365576, -0.4115749478407258),
-          new THREE.Vector3(13.087417607366804, 5.9791958668292535, -11.981660048657387),
-          new THREE.Vector3(6.919099164601268, 5.067224294028957, -6.483712327427357),
-          new THREE.Vector3(18.829060347334654, 4.949963927833904, -22.643917866773307)
-        );
-        defaultCurve.p1NormalAngle = 0;
-        defaultCurve.p2NormalAngle = 0;
-        spline.addSegment(defaultCurve);
+        spline.addSegment(createDefaultSplineSegment());
         spline.updateParameterList(100000);
 
         const splineLength = spline.length(1000);
@@ -220,15 +212,7 @@ export default function SplineScene() {
 
   const handleAddSegment = useCallback(() => {
     if (splineRef.current.segments.length === 0) {
-      const defaultCurve = new CubicBezierCurve(
-        new THREE.Vector3(-1.5435895119281877, 3.1906825413365576, -0.4115749478407258),
-        new THREE.Vector3(13.087417607366804, 5.9791958668292535, -11.981660048657387),
-        new THREE.Vector3(6.919099164601268, 5.067224294028957, -6.483712327427357),
-        new THREE.Vector3(18.829060347334654, 4.949963927833904, -22.643917866773307)
-      );
-      defaultCurve.p1NormalAngle = 0;
-      defaultCurve.p2NormalAngle = 0;
-      splineRef.current.addSegment(defaultCurve);
+      splineRef.current.addSegment(createDefaultSplineSegment());
       showToast("Created default segment", "info");
     } else {
       splineRef.current.addNewCurveToSpline();

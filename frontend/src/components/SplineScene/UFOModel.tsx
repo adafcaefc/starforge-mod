@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { disposeObject } from "./threeUtils";
-import { CubicBezierCurve, Spline } from "./geometry";
+import { CubicBezierCurve, Spline, createDefaultSplineSegment } from "./geometry";
 import { BackendConfigState, GameObjectData, PlayerState } from "./types";
 import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE } from "./constants";
 import { ObjectModelsMap } from "@/types/objectModels";
@@ -46,6 +46,12 @@ export function UFOModel({
   const mouseMoveThrottle = 16;
   const pendingMouseMove = useRef<{ x: number; y: number } | null>(null);
   const mouseRafId = useRef<number | null>(null);
+
+  const updateLengthScale = () => {
+    const splineLength = splineRef.current.length(1000);
+    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+    lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
+  };
 
   const width = 440;
   const height = 240;
@@ -127,9 +133,7 @@ export function UFOModel({
 
                 if (stateData.m_levelLength !== undefined) {
                   playerStateRef.current.levelLength = stateData.m_levelLength || 3000;
-                  const splineLength = splineRef.current.length(1000);
-                  const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
-                  lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
+                  updateLengthScale();
                 }
 
                 if (stateData.m_gameObjects && Array.isArray(stateData.m_gameObjects)) {
@@ -151,29 +155,34 @@ export function UFOModel({
                   }
                 }
 
-                if (stateData.m_levelData && stateData.m_levelData.spline && stateData.m_levelData.spline.segments) {
+                if (stateData.m_levelData && stateData.m_levelData.spline) {
+                  const incomingSegments = Array.isArray(stateData.m_levelData.spline.segments)
+                    ? stateData.m_levelData.spline.segments
+                    : [];
                   const spline = splineRef.current;
                   spline.segments = [];
 
-                  for (const segmentData of stateData.m_levelData.spline.segments) {
-                    const segment = new CubicBezierCurve(
-                      new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
-                      new THREE.Vector3(segmentData.m1.x, segmentData.m1.y, segmentData.m1.z),
-                      new THREE.Vector3(segmentData.m2.x, segmentData.m2.y, segmentData.m2.z),
-                      new THREE.Vector3(segmentData.p2.x, segmentData.p2.y, segmentData.p2.z)
-                    );
-                    segment.p1NormalAngle = segmentData.p1NormalAngle || 0;
-                    segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
-                    spline.addSegment(segment);
+                  if (incomingSegments.length > 0) {
+                    for (const segmentData of incomingSegments) {
+                      const segment = new CubicBezierCurve(
+                        new THREE.Vector3(segmentData.p1.x, segmentData.p1.y, segmentData.p1.z),
+                        new THREE.Vector3(segmentData.m1.x, segmentData.m1.y, segmentData.m1.z),
+                        new THREE.Vector3(segmentData.m2.x, segmentData.m2.y, segmentData.m2.z),
+                        new THREE.Vector3(segmentData.p2.x, segmentData.p2.y, segmentData.p2.z)
+                      );
+                      segment.p1NormalAngle = segmentData.p1NormalAngle || 0;
+                      segment.p2NormalAngle = segmentData.p2NormalAngle || 0;
+                      spline.addSegment(segment);
+                    }
+
+                    console.log("Spline loaded automatically from level data");
+                  } else {
+                    spline.addSegment(createDefaultSplineSegment());
+                    console.log("Level data contained no spline segments; default spline applied");
                   }
 
                   spline.updateParameterList(100000);
-
-                  const splineLength = spline.length(1000);
-                  const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
-                  lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
-
-                  console.log("Spline loaded automatically from level data");
+                  updateLengthScale();
                 }
 
                 if (stateData.m_levelData && stateData.m_levelData.objectModels) {
@@ -201,6 +210,12 @@ export function UFOModel({
 
               if (eventName === "editor_enter") {
                 onGameModeChange(true);
+                if (splineRef.current.segments.length === 0) {
+                  splineRef.current.addSegment(createDefaultSplineSegment());
+                  splineRef.current.updateParameterList(100000);
+                  updateLengthScale();
+                  console.log("Editor enter received with empty spline; default spline applied");
+                }
               } else if (eventName === "editor_exit") {
                 onGameModeChange(false);
               } else if (eventName === "level_exit") {

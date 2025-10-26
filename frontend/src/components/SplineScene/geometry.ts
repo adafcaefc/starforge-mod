@@ -256,3 +256,15 @@ export class Spline {
     return Math.abs(after.l - l) < Math.abs(before.l - l) ? after : before;
   }
 }
+
+export function createDefaultSplineSegment(): CubicBezierCurve {
+  const segment = new CubicBezierCurve(
+    new THREE.Vector3(-1.5435895119281877, 3.1906825413365576, -0.4115749478407258),
+    new THREE.Vector3(13.087417607366804, 5.9791958668292535, -11.981660048657387),
+    new THREE.Vector3(6.919099164601268, 5.067224294028957, -6.483712327427357),
+    new THREE.Vector3(18.829060347334654, 4.949963927833904, -22.643917866773307)
+  );
+  segment.p1NormalAngle = 0;
+  segment.p2NormalAngle = 0;
+  return segment;
+}
