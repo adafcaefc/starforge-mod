@@ -5,7 +5,7 @@ if not exist out\resources mkdir out\resources
 
 xcopy bin\resources out\resources /E /I /Y
 xcopy resources out\resources /E /I /Y
-copy README.md out\about.md
+copy about.md out\about.md
 copy changelog.md out\
 copy logo.png out\
 copy mod.json out\
