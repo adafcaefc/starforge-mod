@@ -12,10 +12,7 @@
   "dependencies": {
     "@react-three/drei": "^9.88.13",
     "@react-three/fiber": "^8.15.12",
-    "@theatre/core": "^0.7.2",
-    "@theatre/r3f": "^0.7.2",
-    "@theatre/studio": "^0.7.2",
-    "next": "14.2.5",
+    "next": "14.2.33",
     "react": "^18",
     "react-dom": "^18",
     "three": "^0.167.0"
@@ -28,7 +25,6 @@
     "autoprefixer": "^10.4.17",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
-    "inline-source": "^8.0.3",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"

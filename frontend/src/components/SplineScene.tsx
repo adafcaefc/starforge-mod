@@ -26,6 +26,20 @@ const BASE_ORBIT_PHI = THREE.MathUtils.degToRad(56.8);
 const BASE_PAN_X = -0.02;
 const BASE_PAN_Y = -0.05;
 
+const DEFAULT_HTTP_PORT = 6673;
+const DEFAULT_WS_PORT = 6671;
+const DEFAULT_API_BASE = `http://localhost:${DEFAULT_HTTP_PORT}`;
+const DEFAULT_WS_URL = `ws://localhost:${DEFAULT_WS_PORT}/socket`;
+
+type BackendConfig = {
+  apiBaseUrl: string;
+  websocketUrl: string;
+};
+
+type BackendConfigState = BackendConfig & {
+  resolved: boolean;
+};
+
 // Helper function to dispose of Three.js objects
 function disposeObject(obj: THREE.Object3D) {
   if (obj instanceof THREE.Mesh) {
@@ -70,11 +84,6 @@ function loadModel(modelPath: string): Promise<THREE.Group> {
 
   modelCache.set(modelPath, promise);
   return promise;
-}
-
-// Helper to clear model cache if needed
-export function clearModelCache() {
-  modelCache.clear();
 }
 
 // Cubic Bezier curve implementation matching the C++ Curve class
@@ -438,6 +447,7 @@ function GameObject({
         disposeObject(scene);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModel]);
 
   useFrame((state) => {
@@ -504,6 +514,7 @@ function UFOModel({
   objectModelsDataRef,
   onGameModeChange,
   onLevelExit,
+  backendConfigRef,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -535,6 +546,7 @@ function UFOModel({
   }>;
   onGameModeChange: (isEditorMode: boolean) => void;
   onLevelExit: () => void;
+  backendConfigRef: React.MutableRefObject<BackendConfigState>;
 }) {
   const modelRef = useRef<THREE.Group>(null);
   const [scene, setScene] = useState<THREE.Group | null>(null);
@@ -571,6 +583,7 @@ function UFOModel({
         disposeObject(scene);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -595,7 +608,12 @@ function UFOModel({
       if (socketRef.current && socketRef.current.readyState !== WebSocket.CLOSED) {
         return;
       }
-      const socket = new WebSocket(`ws://localhost:6671/socket`);
+      
+      // Use websocket URL from backend config
+      const wsUrl = backendConfigRef.current.websocketUrl;
+      console.log('Connecting to WebSocket at:', wsUrl);
+      
+      const socket = new WebSocket(wsUrl);
       socketRef.current = socket;
 
       socket.addEventListener("open", () => {
@@ -753,7 +771,10 @@ function UFOModel({
         canvasTexture.dispose();
       }
     };
-  }, []);
+    // Refs are intentionally excluded - they're stable and always reference current values
+    // canvasTexture is created inside this effect and disposed in cleanup
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onGameModeChange, onLevelExit, backendConfigRef]);
 
   useEffect(() => {
     if (!canvasTexture || !scene) return;
@@ -1755,6 +1776,7 @@ function Scene({
   isEditorMode,
   editorCameraRef,
   onLevelExit,
+  backendConfigRef,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<{
@@ -1805,6 +1827,7 @@ function Scene({
     pitch: number;
   }>;
   onLevelExit: () => void;
+  backendConfigRef: React.MutableRefObject<BackendConfigState>;
 }) {
   return (
     <>
@@ -1840,6 +1863,7 @@ function Scene({
         objectModelsDataRef={objectModelsDataRef}
         onGameModeChange={onGameModeChange}
         onLevelExit={onLevelExit}
+        backendConfigRef={backendConfigRef}
       />
       <GameObjectsField
         gameObjectsRef={gameObjectsRef}
@@ -1863,6 +1887,75 @@ function Scene({
 }
 
 
+// Helper to detect backend configuration
+async function detectBackendConfig(): Promise<BackendConfig> {
+  // Try to detect the current port from window.location
+  const currentPort = window.location.port ? parseInt(window.location.port) : 3000;
+  const currentHost = window.location.hostname;
+  
+  // First, try to use the same port as the frontend (Next.js dev server proxying to backend)
+  try {
+    const response = await fetch(`http://${currentHost}:${currentPort}/api/mod/info`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === 200 && data.message) {
+        const webserverPort = data.message.webserverPort || DEFAULT_HTTP_PORT;
+        const websocketPort = data.message.websocketPort || DEFAULT_WS_PORT;
+        
+        console.log('Backend detected at current port:', {
+          webserverPort,
+          websocketPort,
+        });
+        
+        return {
+          apiBaseUrl: `http://${currentHost}:${webserverPort}`,
+          websocketUrl: `ws://${currentHost}:${websocketPort}/socket`,
+        };
+      }
+    }
+  } catch (error) {
+    console.log('Backend not available at current port, trying default port...');
+  }
+  
+  // Fall back to default port 6673
+  try {
+    const response = await fetch(`http://${currentHost}:${DEFAULT_HTTP_PORT}/api/mod/info`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === 200 && data.message) {
+        const webserverPort = data.message.webserverPort || DEFAULT_HTTP_PORT;
+        const websocketPort = data.message.websocketPort || DEFAULT_WS_PORT;
+        
+        console.log('Backend detected at default port:', {
+          webserverPort,
+          websocketPort,
+        });
+        
+        return {
+          apiBaseUrl: `http://${currentHost}:${webserverPort}`,
+          websocketUrl: `ws://${currentHost}:${websocketPort}/socket`,
+        };
+      }
+    }
+  } catch (error) {
+    console.log('Backend not available at default port, using fallback defaults');
+  }
+  
+  // Ultimate fallback
+  return {
+    apiBaseUrl: DEFAULT_API_BASE,
+    websocketUrl: DEFAULT_WS_URL,
+  };
+}
+
 export default function SplineScene() {
   const [showUI, setShowUI] = useState(true);
   const [showObjectModelsEditor, setShowObjectModelsEditor] = useState(false);
@@ -1872,6 +1965,13 @@ export default function SplineScene() {
 
   // Track object models version to force re-render when models change
   const [objectModelsVersion, setObjectModelsVersion] = useState(0);
+  
+  // Backend configuration state
+  const backendConfigRef = useRef<BackendConfigState>({
+    apiBaseUrl: DEFAULT_API_BASE,
+    websocketUrl: DEFAULT_WS_URL,
+    resolved: false,
+  });
 
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     const id = toastIdCounter.current++;
@@ -1880,6 +1980,17 @@ export default function SplineScene() {
       setToasts((prev) => prev.filter((toast) => toast.id !== id));
     }, 3000);
   };
+  
+  // Detect backend configuration on mount
+  useEffect(() => {
+    detectBackendConfig().then((config) => {
+      backendConfigRef.current = {
+        ...config,
+        resolved: true,
+      };
+      console.log('Backend configuration resolved:', config);
+    });
+  }, []);
 
   const splineRef = useRef<Spline>(new Spline());
   const playerStateRef = useRef({
@@ -2162,7 +2273,10 @@ export default function SplineScene() {
         objectModels: objectModelsDataRef.current,
       };
 
-      const response = await fetch('http://localhost:6673/api/leveldata/load', {
+      const apiUrl = `${backendConfigRef.current.apiBaseUrl}/api/leveldata/load`;
+      console.log('Saving to level at:', apiUrl);
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2184,7 +2298,6 @@ export default function SplineScene() {
     }
   };
 
-  // Camera controls (same as SpaceshipScene)
   const lastMousePosRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -2359,6 +2472,7 @@ export default function SplineScene() {
             isEditorMode={isEditorMode}
             editorCameraRef={editorCameraRef}
             onLevelExit={resetCockpitCamera}
+            backendConfigRef={backendConfigRef}
           />
           <OrbitControls
             enabled={false}

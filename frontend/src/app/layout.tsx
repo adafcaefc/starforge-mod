@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Spaceship',
-  description: 'Three.js laptop with WebSocket screen streaming',
+  title: 'Spline Scene',
+  description: 'Interactive spline scene viewer',
 }
 
 export default function RootLayout({
