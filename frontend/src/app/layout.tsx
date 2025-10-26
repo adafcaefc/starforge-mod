@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Spline Scene',
-  description: 'Interactive spline scene viewer',
+  title: 'Starforge',
+  description: '',
 }
 
 export default function RootLayout({
