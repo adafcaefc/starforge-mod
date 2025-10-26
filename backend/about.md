@@ -90,4 +90,12 @@ When you play the level, the system will use this data to reconstruct the enviro
 - [Apple MacBook Pro 16-inch (2021)](https://sketchfab.com/3d-models/apple-macbook-pro-16-inch-2021-6a42b31bac064b00a91fbfebec07c852)  
 - [UFO](https://sketchfab.com/3d-models/ufo-76f269cbf23e415b8503f8a8bf2c54dd)  
 - [Animated Sheep](https://sketchfab.com/3d-models/animated-sheep-b99698502dea4905b916fce0bcf2dfc0)  
-- [Meteors](https://sketchfab.com/3d-models/meteors-c93e9bfc2bb54feda02e767af570ef9d)  
+- [Meteors](https://sketchfab.com/3d-models/meteors-c93e9bfc2bb54feda02e767af570ef9d) 
+
+---
+
+## Credits
+
+Developed by adaf. Special thanks to all contributors, testers, and helpers.
+
+- [TimeStepYT](https://github.com/TimeStepYT)  
