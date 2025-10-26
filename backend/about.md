@@ -96,6 +96,8 @@ When you play the level, the system will use this data to reconstruct the enviro
 
 ## Credits
 
-Developed by adaf. Special thanks to all contributors, testers, and helpers.
+Special thanks to all contributors, testers, and helpers.
 
 - [TimeStepYT](https://github.com/TimeStepYT)  
+- [maxnut](https://github.com/maxnut)  
+- [RainixGD](https://github.com/RainixGD)  
