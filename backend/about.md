@@ -86,8 +86,9 @@ This is not a bug. It is punishment for negligence.
 
 - [Mario Box (Low Poly)](https://sketchfab.com/3d-models/mario-box-low-poly-d0741311a88944d1a82daf2c84499246d)  
 - [Sci-Fi Box](https://sketchfab.com/3d-models/sci-fi--box-9162d24c326f4cdd9e495f154226b916)  
-- [Sci-Fi Crate 1](https://sketchfab.com/3d-models/sci-fi-crate-1-92fb9a66eb374d66ba944515768a66b4#download)  
-- [Sci-Fi Crate (Low Poly Game Asset)](https://sketchfab.com/3d-models/scifi-crate-low-poly-game-asset-textured-2a15ed1de7854ad9be9cdefc90cdc738#download)  
+- [Sci-Fi Crate 1](https://sketchfab.com/3d-models/sci-fi-crate-1-92fb9a66eb374d66ba944515768a66b4)  
+- [Sci-Fi Crate (Low Poly Game Asset)](https://sketchfab.com/3d-models/scifi-crate-low-poly-game-asset-textured-2a15ed1de7854ad9be9cdefc90cdc738)  
 - [Apple MacBook Pro 16-inch (2021)](https://sketchfab.com/3d-models/apple-macbook-pro-16-inch-2021-6a42b31bac064b00a91fbfebec07c852)  
 - [UFO](https://sketchfab.com/3d-models/ufo-76f269cbf23e415b8503f8a8bf2c54dd)  
 - [Animated Sheep](https://sketchfab.com/3d-models/animated-sheep-b99698502dea4905b916fce0bcf2dfc0)  
+- [Meteors](https://sketchfab.com/3d-models/meteors-c93e9bfc2bb54feda02e767af570ef9d)  
