@@ -1,34 +1,13 @@
-"use client";
+'use client';
 
 import React, { useState, useEffect, useRef } from "react";
-import * as THREE from "three";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { ObjectModelData, ObjectModelsMap } from "@/types/objectModels";
+import { ModelPreview } from "./ModelPreview";
+import { ObjectSprite } from "./ObjectSprite";
+import { ObjectSpritePreview } from "./ObjectSpritePreview";
+import { ObjectModelsEditorProps, Toast } from "./types";
 
-interface ObjectModelData {
-  scaleX: number;
-  scaleY: number;
-  modelTextures: string[];
-  shouldSpin?: boolean;
-}
-
-interface ObjectModelsMap {
-  [objectId: string]: ObjectModelData;
-}
-
-interface ObjectModelsEditorProps {
-  objectModelsDataRef: React.MutableRefObject<ObjectModelsMap>;
-  splineRef: React.MutableRefObject<any>; // Spline ref from parent
-  onClose: () => void;
-  onSave?: () => void;
-}
-
-interface Toast {
-  id: number;
-  message: string;
-  type: "success" | "error" | "info";
-}
+const API_BASE = "http://localhost:6673";
 
 export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onClose, onSave }: ObjectModelsEditorProps) {
   const [objectModels, setObjectModels] = useState<ObjectModelsMap>({});
@@ -42,9 +21,7 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownObjectIds, setDropdownObjectIds] = useState<number[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const API_BASE = "http://localhost:6673";
 
-  // Toast notification system
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     const id = toastIdCounter.current++;
     setToasts((prev) => [...prev, { id, message, type }]);
@@ -53,13 +30,12 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     }, 3000);
   };
 
-  // Fetch selected objects from API
   useEffect(() => {
     const fetchSelectedObjects = async () => {
       try {
         const response = await fetch(`${API_BASE}/api/gameobject/selected/get`);
         const data = await response.json();
-        
+
         if (response.ok && data.status === 200) {
           const objects = data.message.selectedObjects || [];
           setSelectedObjects(objects);
@@ -73,32 +49,25 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     };
 
     fetchSelectedObjects();
-    // Poll every 2 seconds for updates
     const interval = setInterval(fetchSelectedObjects, 2000);
     return () => clearInterval(interval);
   }, []);
 
-  // Update dropdown IDs based on selected objects and text input
   useEffect(() => {
     const inputNum = parseInt(newObjectId) || 0;
-    
+
     if (selectedObjects.length > 0) {
-      // Get unique object IDs from selected objects
       const uniqueSelectedIds = Array.from(new Set(selectedObjects.map((obj: any) => obj.m_objectId))) as number[];
-      // Take first 10 unique selected IDs
       const selectedIds = uniqueSelectedIds.slice(0, 10);
-      
-      // Generate next 10 IDs based on text input (or first selected if no input)
+
       const baseId = inputNum > 0 ? inputNum : selectedIds[0] || 1;
       const nextIds: number[] = [];
       for (let i = 1; i <= 10; i++) {
         nextIds.push(baseId + i);
       }
-      
-      // Combine: selected IDs first, then next IDs
+
       setDropdownObjectIds([...selectedIds, ...nextIds]);
     } else {
-      // No objects selected - generate from text input or defaults
       const baseId = inputNum > 0 ? inputNum : 1;
       const ids: number[] = [];
       for (let i = 0; i < 10; i++) {
@@ -108,7 +77,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     }
   }, [selectedObjects, newObjectId]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -122,12 +90,9 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     }
   }, [showDropdown]);
 
-  // Load available GLB files in the objects folder
   useEffect(() => {
     const loadGlbFiles = async () => {
       try {
-        // For now, we'll list known GLB files
-        // In a real implementation, you'd fetch this list from the server
         const glbFiles = [
           "box1.glb",
           "box2.glb",
@@ -146,18 +111,14 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     loadGlbFiles();
   }, []);
 
-  // Load object models from the ref
   useEffect(() => {
     setObjectModels({ ...objectModelsDataRef.current });
     setObjectIds(Object.keys(objectModelsDataRef.current).map(Number).sort((a, b) => a - b));
   }, [objectModelsDataRef]);
 
-  // Save object models to the ref and to level
   const saveObjectModels = async () => {
-    // Update the ref with current state
     objectModelsDataRef.current = { ...objectModels };
-    
-    // Also save to level via API
+
     try {
       const spline = splineRef.current;
       const levelData = {
@@ -174,39 +135,36 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
         objectModels: objectModels,
       };
 
-      const response = await fetch('http://localhost:6673/api/leveldata/load', {
-        method: 'POST',
+      const response = await fetch("http://localhost:6673/api/leveldata/load", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(levelData),
       });
 
       const result = await response.json();
-      
+
       if (!response.ok || result.status !== 200) {
-        throw new Error(result.message || 'Failed to save level data');
+        throw new Error(result.message || "Failed to save level data");
       }
 
-      showToast('Object models saved successfully!', 'success');
-      console.log('Object models saved to level');
-      
-      // Call onSave callback if provided
+      showToast("Object models saved successfully!", "success");
+      console.log("Object models saved to level");
+
       if (onSave) {
         onSave();
       }
-      
-      // Close after a brief delay to show the success toast
+
       setTimeout(() => {
         onClose();
       }, 500);
     } catch (error) {
-      console.error('Failed to save to level:', error);
-      showToast(`Failed to save to level: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      console.error("Failed to save to level:", error);
+      showToast(`Failed to save to level: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
     }
   };
 
-  // Add a new object model
   const addObjectModel = () => {
     const objectId = newObjectId.trim();
     if (!objectId || objectModels[objectId]) {
@@ -228,9 +186,7 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     setNewObjectId("");
   };
 
-  // Delete an object model
   const deleteObjectModel = (objectId: string) => {
-
     const newModels = { ...objectModels };
     delete newModels[objectId];
     setObjectModels(newModels);
@@ -240,7 +196,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     }
   };
 
-  // Update a specific object model
   const updateObjectModel = (objectId: string, updates: Partial<ObjectModelData>) => {
     setObjectModels({
       ...objectModels,
@@ -251,7 +206,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     });
   };
 
-  // Add a GLB file to the model textures
   const addModelTexture = (objectId: string, glbFile: string) => {
     const model = objectModels[objectId];
     if (!model.modelTextures.includes(glbFile)) {
@@ -261,7 +215,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     }
   };
 
-  // Remove a GLB file from the model textures
   const removeModelTexture = (objectId: string, glbFile: string) => {
     const model = objectModels[objectId];
     updateObjectModel(objectId, {
@@ -271,10 +224,43 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
 
   const selectedModel = selectedObjectId ? objectModels[selectedObjectId] : null;
 
+  const renderDropdownItems = (ids: number[], highlightSelected: boolean) =>
+    ids
+      .filter((id) => id != null)
+      .map((id) => {
+        const idStr = String(id);
+        const alreadyExists = !!objectModels[idStr];
+        return (
+          <button
+            key={id}
+            onClick={() => {
+              setNewObjectId(idStr);
+              setShowDropdown(false);
+            }}
+            disabled={alreadyExists}
+            className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${
+              alreadyExists
+                ? "opacity-50 cursor-not-allowed bg-gray-800"
+                : "hover:bg-gray-700"
+            } ${highlightSelected ? "bg-blue-900/20" : ""}`}
+          >
+            <div className="w-8 h-8 bg-gray-900 rounded border border-gray-700 flex-shrink-0 flex items-center justify-center overflow-hidden">
+              <ObjectSpritePreview objectId={idStr} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm text-white">{id}</span>
+                {highlightSelected && <span className="text-xs text-blue-400">●</span>}
+                {alreadyExists && <span className="text-xs text-gray-500">(exists)</span>}
+              </div>
+            </div>
+          </button>
+        );
+      });
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-gray-900 rounded-lg shadow-2xl border border-gray-700 w-full max-w-6xl h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <h2 className="text-xl font-bold text-white">Object Models Editor</h2>
           <button
@@ -285,9 +271,7 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex flex-1 overflow-hidden">
-          {/* Left Panel - Object List */}
           <div className="w-80 border-r border-gray-700 overflow-y-auto custom-scrollbar p-4 flex flex-col">
             <div className="mb-4">
               <h3 className="text-sm font-semibold text-gray-300 mb-2">Object IDs</h3>
@@ -299,7 +283,7 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
                     pattern="[0-9]*"
                     value={newObjectId}
                     onChange={(e) => {
-                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      const value = e.target.value.replace(/[^0-9]/g, "");
                       setNewObjectId(value);
                     }}
                     onFocus={() => setShowDropdown(true)}
@@ -314,89 +298,31 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
                       }
                     }}
                   />
-                  
-                  {/* Dropdown */}
+
                   {showDropdown && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded shadow-lg max-h-80 overflow-y-auto z-50">
                       {selectedObjects.length > 0 && (
                         <>
                           <div className="px-2 py-1 text-xs text-blue-400 border-b border-gray-700 bg-gray-900/50 sticky top-0">
-                            Selected in Editor ({Math.min(10, Array.from(new Set(selectedObjects.map(obj => obj.m_objectId))).length)})
+                            Selected in Editor ({Math.min(10, Array.from(new Set(selectedObjects.map((obj) => obj.m_objectId))).length)})
                           </div>
-                          {dropdownObjectIds.slice(0, Math.min(10, Array.from(new Set(selectedObjects.map(obj => obj.m_objectId))).length)).filter(id => id != null).map((id) => {
-                            const idStr = String(id);
-                            const alreadyExists = !!objectModels[idStr];
-                            return (
-                              <button
-                                key={id}
-                                onClick={() => {
-                                  const idStr = String(id);
-                                  setNewObjectId(idStr);
-                                  setShowDropdown(false);
-                                }}
-                                disabled={alreadyExists}
-                                className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${
-                                  alreadyExists
-                                    ? 'opacity-50 cursor-not-allowed bg-gray-800'
-                                    : 'hover:bg-gray-700'
-                                } bg-blue-900/20`}
-                              >
-                                <div className="w-8 h-8 bg-gray-900 rounded border border-gray-700 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                                  <ObjectSpritePreview objectId={idStr} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono text-sm text-white">
-                                      {id}
-                                    </span>
-                                    <span className="text-xs text-blue-400">●</span>
-                                    {alreadyExists && (
-                                      <span className="text-xs text-gray-500">(exists)</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
+                          {renderDropdownItems(
+                            dropdownObjectIds.slice(0, Math.min(10, Array.from(new Set(selectedObjects.map((obj) => obj.m_objectId))).length)),
+                            true
+                          )}
                           <div className="px-2 py-1 text-xs text-gray-400 border-b border-gray-700 bg-gray-900/50 sticky top-0">
                             Next Items
                           </div>
                         </>
                       )}
-                      {dropdownObjectIds.slice(selectedObjects.length > 0 ? Math.min(10, Array.from(new Set(selectedObjects.map(obj => obj.m_objectId))).length) : 0).filter(id => id != null).map((id) => {
-                        const idStr = String(id);
-                        const alreadyExists = !!objectModels[idStr];
-                        return (
-                          <button
-                            key={id}
-                            onClick={() => {
-                              const idStr = String(id);
-                              setNewObjectId(idStr);
-                              setShowDropdown(false);
-                            }}
-                            disabled={alreadyExists}
-                            className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${
-                              alreadyExists
-                                ? 'opacity-50 cursor-not-allowed bg-gray-800'
-                                : 'hover:bg-gray-700'
-                            }`}
-                          >
-                            <div className="w-8 h-8 bg-gray-900 rounded border border-gray-700 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                              <ObjectSpritePreview objectId={idStr} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-sm text-white">
-                                  {id}
-                                </span>
-                                {alreadyExists && (
-                                  <span className="text-xs text-gray-500">(exists)</span>
-                                )}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
+                      {renderDropdownItems(
+                        dropdownObjectIds.slice(
+                          selectedObjects.length > 0
+                            ? Math.min(10, Array.from(new Set(selectedObjects.map((obj) => obj.m_objectId))).length)
+                            : 0
+                        ),
+                        false
+                      )}
                     </div>
                   )}
                 </div>
@@ -412,7 +338,8 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
               </div>
             </div>
 
-            <div className="space-y-1 flex-1 overflow-y-auto custom-scrollbar">{objectIds.map((id) => {
+            <div className="space-y-1 flex-1 overflow-y-auto custom-scrollbar">
+              {objectIds.map((id) => {
                 const objectId = id.toString();
                 const isSelected = selectedObjectId === objectId;
                 return (
@@ -445,28 +372,20 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
             </div>
           </div>
 
-          {/* Right Panel - Object Details */}
           <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
             {selectedModel && selectedObjectId ? (
               <div className="flex flex-col h-full">
                 <div className="flex-shrink-0">
-                  <h3 className="text-lg font-semibold text-white mb-4">
-                    Object ID: {selectedObjectId}
-                  </h3>
+                  <h3 className="text-lg font-semibold text-white mb-4">Object ID: {selectedObjectId}</h3>
 
-                  {/* Sprite Preview and Controls - Side by Side */}
                   <div className="flex gap-6 mb-6">
-                    {/* Sprite Preview */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Sprite Preview
-                      </label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Sprite Preview</label>
                       <div className="w-32 h-32 bg-gray-800 border border-gray-600 rounded flex items-center justify-center">
                         <ObjectSprite objectId={selectedObjectId} size={96} />
                       </div>
                     </div>
 
-                    {/* Scale Controls and Auto-Spin */}
                     <div className="flex-1">
                       <div className="space-y-4">
                         <div>
@@ -517,9 +436,7 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
                               }
                               className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-900"
                             />
-                            <span className="text-sm font-medium text-gray-300">
-                              Enable Auto-Spin
-                            </span>
+                            <span className="text-sm font-medium text-gray-300">Enable Auto-Spin</span>
                           </label>
                         </div>
                       </div>
@@ -527,31 +444,27 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
                   </div>
                 </div>
 
-                {/* Model Textures (GLB Files) - Takes remaining height */}
                 <div className="flex-1 flex flex-col min-h-0">
                   <label className="block text-sm font-medium text-gray-300 mb-3 flex-shrink-0">
                     Available Models
-                    <span className="block text-xs text-gray-500 mt-1">
-                      Selected at random if multiple
-                    </span>
+                    <span className="block text-xs text-gray-500 mt-1">Selected at random if multiple</span>
                   </label>
 
-                  {/* All GLB Files with Previews - Fills remaining space */}
                   <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
                     {availableGlbFiles.map((glbFile) => {
-                      const isSelected = selectedModel.modelTextures.includes(glbFile);
+                      const isSelectedTexture = selectedModel.modelTextures.includes(glbFile);
                       return (
                         <button
                           key={glbFile}
                           onClick={() => {
-                            if (isSelected) {
+                            if (isSelectedTexture) {
                               removeModelTexture(selectedObjectId, glbFile);
                             } else {
                               addModelTexture(selectedObjectId, glbFile);
                             }
                           }}
                           className={`w-full flex items-center gap-3 p-3 rounded transition-colors border ${
-                            isSelected
+                            isSelectedTexture
                               ? "bg-green-600 hover:bg-green-700 text-white border-green-500"
                               : "bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-600"
                           }`}
@@ -560,9 +473,7 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
                             <ModelPreview modelPath={`/models/objects/${glbFile}`} />
                           </div>
                           <div className="flex-1 text-left">
-                            <div className="font-mono text-sm">
-                              {glbFile}
-                            </div>
+                            <div className="font-mono text-sm">{glbFile}</div>
                           </div>
                         </button>
                       );
@@ -578,7 +489,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end p-4 border-t border-gray-700">
           <div className="flex gap-2">
             <button
@@ -591,7 +501,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
         </div>
       </div>
 
-      {/* Toast Notifications */}
       <div className="fixed bottom-4 right-4 z-[60] space-y-2">
         {toasts.map((toast) => (
           <div
@@ -609,167 +518,5 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
         ))}
       </div>
     </div>
-  );
-}
-
-// Component to display 3D model preview
-function ModelPreview({ modelPath }: { modelPath: string }) {
-  const [scene, setScene] = useState<THREE.Group | null>(null);
-
-  useEffect(() => {
-    const loader = new GLTFLoader();
-    loader.load(
-      modelPath,
-      (gltf) => {
-        setScene(gltf.scene);
-      },
-      undefined,
-      (error) => {
-        console.error(`Failed to load ${modelPath}:`, error);
-      }
-    );
-  }, [modelPath]);
-
-  if (!scene) {
-    return (
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="w-2 h-2 bg-gray-600 rounded-full animate-pulse" />
-      </div>
-    );
-  }
-
-  return (
-    <Canvas camera={{ position: [2.5, 2.5, 3], fov: 60 }}>
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[5, 5, 5]} intensity={1} />
-      <primitive object={scene} scale={0.5} />
-      <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={4} />
-    </Canvas>
-  );
-}
-
-// Component to display object sprite (combined detail + main)
-function ObjectSprite({ objectId, size = 24 }: { objectId: string; size?: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    canvas.width = size;
-    canvas.height = size;
-
-    const detailImg = document.createElement("img");
-    const mainImg = document.createElement("img");
-
-    let loadedCount = 0;
-    const checkLoaded = () => {
-      loadedCount++;
-      if (loadedCount === 2) {
-        ctx.clearRect(0, 0, size, size);
-
-        // Draw main texture
-        if (mainImg.complete && mainImg.naturalWidth > 0) {
-          ctx.drawImage(mainImg, 0, 0, size, size);
-        }
-
-        // Draw detail texture on top
-        if (detailImg.complete && detailImg.naturalWidth > 0) {
-          ctx.drawImage(detailImg, 0, 0, size, size);
-        }
-      }
-    };
-
-    detailImg.onerror = checkLoaded;
-    mainImg.onerror = checkLoaded;
-    detailImg.onload = checkLoaded;
-    mainImg.onload = checkLoaded;
-
-    detailImg.src = `/gd/objects/detail/${objectId}.png`;
-    mainImg.src = `/gd/objects/main/${objectId}.png`;
-  }, [objectId, size]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      width={size}
-      height={size}
-      style={{ width: size, height: size }}
-      className="image-rendering-pixelated"
-    />
-  );
-}
-
-// Simpler preview component for dropdown with fallback
-function ObjectSpritePreview({ objectId }: { objectId: string }) {
-  const [hasSprite, setHasSprite] = useState<boolean | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const size = 32;
-    canvas.width = size;
-    canvas.height = size;
-
-    const detailImg = document.createElement("img");
-    const mainImg = document.createElement("img");
-
-    let loadedCount = 0;
-    let hasAnyImage = false;
-
-    const checkLoaded = () => {
-      loadedCount++;
-      if (loadedCount === 2) {
-        ctx.clearRect(0, 0, size, size);
-
-        // Draw main texture
-        if (mainImg.complete && mainImg.naturalWidth > 0) {
-          ctx.drawImage(mainImg, 0, 0, size, size);
-          hasAnyImage = true;
-        }
-
-        // Draw detail texture on top
-        if (detailImg.complete && detailImg.naturalWidth > 0) {
-          ctx.drawImage(detailImg, 0, 0, size, size);
-          hasAnyImage = true;
-        }
-
-        setHasSprite(hasAnyImage);
-      }
-    };
-
-    detailImg.onerror = checkLoaded;
-    mainImg.onerror = checkLoaded;
-    detailImg.onload = checkLoaded;
-    mainImg.onload = checkLoaded;
-
-    detailImg.src = `/gd/objects/detail/${objectId}.png`;
-    mainImg.src = `/gd/objects/main/${objectId}.png`;
-  }, [objectId]);
-
-  if (hasSprite === false) {
-    return (
-      <div className="w-full h-full flex items-center justify-center text-gray-500 text-xl">
-        ?
-      </div>
-    );
-  }
-
-  return (
-    <canvas
-      ref={canvasRef}
-      width={32}
-      height={32}
-      style={{ width: 32, height: 32 }}
-      className="image-rendering-pixelated"
-    />
   );
 }
