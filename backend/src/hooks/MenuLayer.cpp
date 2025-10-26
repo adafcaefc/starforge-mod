@@ -327,33 +327,42 @@ G3DProgressBar* G3DProgressBar::create() {
     return nullptr;
 }
 
+static CCSprite* spcGetUfoBtnSprite() {
+    auto animation = cocos2d::CCAnimation::create();
+    animation->setDelayPerUnit(1.0f / 24.0f);
+    addAnimations(animation, spc::State::get()->getResourcesPath() / "rendered" / "ufo", 64u);
+    auto gif = cocos2d::CCSprite::create();
+    gif->runAction(cocos2d::CCRepeatForever::create(cocos2d::CCAnimate::create(animation)));
+
+    auto btnSprite = CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png");
+
+    btnSprite->setScale(2.5f);
+    btnSprite->setOpacity(0);
+
+    btnSprite->addChild(gif);
+    gif->setPosition(ccp(
+        btnSprite->getContentSize().width / 2.f,
+        btnSprite->getContentSize().height / 2.f
+    ));
+
+    gif->setScale(0.325f);
+    return btnSprite;
+}
+
+static void spcOpenWebserverLink() {
+    geode::utils::web::openLinkInBrowser(fmt::format(
+        "http://localhost:{}/",
+        Mod::get()->getSettingValue<uint16_t>("webserver-port")
+    ));
+}
+
 class $modify(MyMenuLayer, MenuLayer) {
     bool init() {
         if (!MenuLayer::init()) {
             return false;
         }
-
-        auto animation = cocos2d::CCAnimation::create();
-        animation->setDelayPerUnit(1.0f / 24.0f);
-        addAnimations(animation, spc::State::get()->getResourcesPath() / "rendered" / "ufo", 64u);
-        auto gif = cocos2d::CCSprite::create();
-        gif->runAction(cocos2d::CCRepeatForever::create(cocos2d::CCAnimate::create(animation)));
-
-        auto btnSprite = CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png");      
-
-        btnSprite->setScale(2.5f);
-        btnSprite->setOpacity(0);
-
-        btnSprite->addChild(gif);
-        gif->setPosition(ccp(
-            btnSprite->getContentSize().width / 2.f,
-            btnSprite->getContentSize().height / 2.f
-        ));
-
-        gif->setScale(0.325f);
-
         auto myButton = CCMenuItemSpriteExtra::create(
-            btnSprite,
+            spcGetUfoBtnSprite(),
             this,
             menu_selector(MyMenuLayer::onMyButton)
         );
@@ -470,6 +479,10 @@ class $modify(MyMenuLayer, MenuLayer) {
         G3DPlanetPopup::tryOpen(800000000);
     }
 
+    void onOpenLink(CCObject*) {
+        spcOpenWebserverLink();
+    }
+
     void onMyButton(CCObject*) {
         auto scene = CCScene::create();
         // template layer because idk how to code a new one from scratch
@@ -497,6 +510,17 @@ class $modify(MyMenuLayer, MenuLayer) {
                     menu_selector(MyMenuLayer::onOrionDialog)
                 );
             }
+        }
+
+        if (auto bottomRightMenu = typeinfo_cast<CCMenu*>(layer->getChildByIDRecursive("bottom-right-menu"))) {
+            auto myButton = CCMenuItemSpriteExtra::create(
+                spcGetUfoBtnSprite(),
+                this,
+                menu_selector(MyMenuLayer::onOpenLink)
+            );
+            myButton->setID("ufo-button"_spr);
+            bottomRightMenu->addChild(myButton);
+            bottomRightMenu->updateLayout();
         }
 
         if (auto loadingCircle = layer->getChildByIDRecursive("loading-circle")) {
@@ -544,10 +568,9 @@ class $modify(MyMenuLayer, MenuLayer) {
         scene->addChild(layer);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.3f, scene));
 
-        // open webserver link index
-        geode::utils::web::openLinkInBrowser(fmt::format(
-            "http://localhost:{}/",
-            Mod::get()->getSettingValue<uint16_t>("webserver-port")
-        ));
+        // check whether socket connection exist before opening a new web window
+        if (spc::State::get()->m_server->getConnectionCount() == 0u) {
+            spcOpenWebserverLink();
+        }
     }
 };

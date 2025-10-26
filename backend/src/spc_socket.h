@@ -89,6 +89,11 @@ namespace spc {
 
             static std::shared_ptr<SocketServer> create(uint16_t const port);
 
+            unsigned int getConnectionCount() {
+                wspp_lock_guard lock(m_connectionLock);
+                return m_connections.size();
+            }
+
             // these all should be private, but for simplicity, we make them public
             bool m_launched = false;
             bool m_threadLaunched = false;
