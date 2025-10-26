@@ -34,7 +34,7 @@ jobs:
           mkdir out
           xcopy bin\resources out\resources /E /I /Y
           xcopy resources out\resources /E /I /Y
-          cp README.md out/about.md
+          cp about.md out/
           cp changelog.md out/
           cp logo.png out/
           cp mod.json out/
