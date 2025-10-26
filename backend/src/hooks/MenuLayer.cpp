@@ -175,7 +175,7 @@ static GJGameLevel* getLevelByID(int levelID) {
         {
             level->m_levelID = levelID;
             level->m_dailyID = levelID;
-            level->m_levelType = GJLevelType::Editor;
+            level->m_levelType = GJLevelType::Saved;
             level->m_stars = 0;
             GameManager::get()->addChild(level);
             return level;
@@ -513,14 +513,21 @@ class $modify(MyMenuLayer, MenuLayer) {
         }
 
         if (auto bottomRightMenu = typeinfo_cast<CCMenu*>(layer->getChildByIDRecursive("bottom-right-menu"))) {
+            auto myButtonSprite = spcGetUfoBtnSprite();
             auto myButton = CCMenuItemSpriteExtra::create(
-                spcGetUfoBtnSprite(),
+                myButtonSprite,
                 this,
                 menu_selector(MyMenuLayer::onOpenLink)
             );
             myButton->setID("ufo-button"_spr);
             bottomRightMenu->addChild(myButton);
-            bottomRightMenu->updateLayout();
+            myButton->setPosition(ccp(
+                -10.f,
+                20.f
+            ));
+            if (auto child = myButtonSprite->getChildByIndex(0)) {
+                child->setScale(0.225f);
+            }
         }
 
         if (auto loadingCircle = layer->getChildByIDRecursive("loading-circle")) {
@@ -546,6 +553,56 @@ class $modify(MyMenuLayer, MenuLayer) {
         if (auto scrollButtonsMenu = typeinfo_cast<CCMenu*>(layer->getChildByIDRecursive("scroll-buttons-menu"))) {
             scrollButtonsMenu->setVisible(false);
             scrollButtonsMenu->setZOrder(-1000);
+        }
+
+        if (auto background = typeinfo_cast<CCSprite*>(layer->getChildByIDRecursive("background"))) {
+            // Create a new node to hold the starfield
+            auto starField = CCNode::create();
+
+            auto winSize = CCDirector::sharedDirector()->getWinSize();
+
+            // Create stars
+            constexpr int numStars = 120;
+            for (int i = 0; i < numStars; ++i) {
+                auto star = CCSprite::create();
+                auto draw = CCDrawNode::create();
+                auto randomRadius = .05f + CCRANDOM_0_1() * .35f;
+                draw->drawDot(CCPointZero, randomRadius, ccc4f(1, 1, 1, 1));
+                star->addChild(draw);
+
+                float x = CCRANDOM_0_1() * winSize.width;
+                float y = CCRANDOM_0_1() * winSize.height;
+                star->setPosition({ x, y });
+                star->setOpacity(0);
+                starField->addChild(star);
+
+                // Random blink timing
+                float delay = CCRANDOM_0_1() * 9.0f;
+                float fadeIn = 1.5f + CCRANDOM_0_1() * 1.5f;
+                float fadeOut = 1.5f + CCRANDOM_0_1() * 1.5f;
+
+                auto blink = CCSequence::create(
+                    CCDelayTime::create(delay),
+                    CCFadeIn::create(fadeIn),
+                    CCFadeOut::create(fadeOut),
+                    nullptr
+                );
+
+                star->runAction(CCRepeatForever::create(blink));
+            }
+
+            // Optional: slow drifting stars for subtle motion
+            auto drift = CCMoveBy::create(25.0f, { 10.0f, 5.0f });
+            starField->runAction(CCRepeatForever::create(
+                CCSequence::create(drift, drift->reverse(), nullptr)
+            ));
+
+            starField->setID("star-field"_spr);
+            starField->setContentSize(background->getContentSize());
+            starField->setZOrder(background->getZOrder());
+            starField->setPosition(background->getPosition());
+            background->getParent()->addChild(starField);
+            background->setVisible(false);
         }
 
         // create a new CCMenu in the middle of the layer
