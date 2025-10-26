@@ -557,6 +557,8 @@ function UFOModel({
   const prevTangentRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
   const mouseInScreen = useRef(false);
   const mouseIsPressed = useRef(false);
+  const activePointerId = useRef<number | null>(null);
+  const lastMousePosition = useRef({ x: 0.5, y: 0.5 });
   const lastMouseMoveTime = useRef(0);
   const mouseMoveThrottle = 16;
   const pendingMouseMove = useRef<{ x: number; y: number } | null>(null);
@@ -852,11 +854,25 @@ function UFOModel({
   const handleModelPointerDown = (event: any) => {
     const button = event.nativeEvent?.button ?? 0;
     if (button !== 0) return; // Only left click
-    mouseIsPressed.current = true;
+
     const screenIntersect = event.intersections?.find((intersect: any) => isScreenIntersection(intersect));
     if (screenIntersect && screenIntersect.uv) {
+      mouseIsPressed.current = true;
+
+      const pointerId = event.nativeEvent?.pointerId;
+      if (pointerId !== undefined) {
+        activePointerId.current = pointerId;
+        const domTarget = event.nativeEvent?.target as (Element & { setPointerCapture?: (pointerId: number) => void });
+        if (domTarget && typeof domTarget.setPointerCapture === "function") {
+          domTarget.setPointerCapture(pointerId);
+        }
+      } else {
+        activePointerId.current = null;
+      }
+
       const x = Math.max(0, Math.min(1, screenIntersect.uv.x));
       const y = Math.max(0, Math.min(1, 1 - screenIntersect.uv.y));
+      lastMousePosition.current = { x, y };
       sendInput({ type: "mouse_down", button, x, y });
     }
   };
@@ -864,13 +880,28 @@ function UFOModel({
   const handleModelPointerUp = (event: any) => {
     const button = event.nativeEvent?.button ?? 0;
     if (button !== 0) return; // Only left click
-    mouseIsPressed.current = false;
-    const screenIntersect = event.intersections?.find((intersect: any) => isScreenIntersection(intersect));
-    if (screenIntersect && screenIntersect.uv) {
-      const x = Math.max(0, Math.min(1, screenIntersect.uv.x));
-      const y = Math.max(0, Math.min(1, 1 - screenIntersect.uv.y));
-      sendInput({ type: "mouse_up", button, x, y });
+
+    const pointerId = event.nativeEvent?.pointerId;
+    if (pointerId !== undefined && activePointerId.current === pointerId) {
+      const domTarget = event.nativeEvent?.target as (Element & { releasePointerCapture?: (pointerId: number) => void });
+      if (domTarget && typeof domTarget.releasePointerCapture === "function") {
+        domTarget.releasePointerCapture(pointerId);
+      }
+      activePointerId.current = null;
     }
+
+    if (!mouseIsPressed.current) return;
+    mouseIsPressed.current = false;
+
+    const screenIntersect = event.intersections?.find((intersect: any) => isScreenIntersection(intersect));
+    let { x, y } = lastMousePosition.current;
+    if (screenIntersect && screenIntersect.uv) {
+      x = Math.max(0, Math.min(1, screenIntersect.uv.x));
+      y = Math.max(0, Math.min(1, 1 - screenIntersect.uv.y));
+      lastMousePosition.current = { x, y };
+    }
+
+    sendInput({ type: "mouse_up", button, x, y });
   };
 
   const handleModelPointerMove = (event: any) => {
@@ -880,10 +911,16 @@ function UFOModel({
     }
     lastMouseMoveTime.current = now;
 
+    const pointerId = event.nativeEvent?.pointerId;
+    if (activePointerId.current !== null && pointerId !== undefined && pointerId !== activePointerId.current) {
+      return;
+    }
+
     const screenIntersect = event.intersections?.find((intersect: any) => isScreenIntersection(intersect));
     if (screenIntersect && screenIntersect.uv && mouseInScreen.current) {
       const x = Math.max(0, Math.min(1, screenIntersect.uv.x));
       const y = Math.max(0, Math.min(1, 1 - screenIntersect.uv.y));
+      lastMousePosition.current = { x, y };
 
       pendingMouseMove.current = { x, y };
       if (mouseRafId.current === null) {
@@ -897,10 +934,12 @@ function UFOModel({
   };
 
   const handleModelPointerLeave = () => {
-    // If mouse was pressed when leaving, send mouse_up event
-    if (mouseIsPressed.current) {
-      sendInput({ type: "mouse_up", button: 0, x: 0.5, y: 0.5 });
+    // Fallback release only if no active pointer capture
+    if (mouseIsPressed.current && activePointerId.current === null) {
+      const { x, y } = lastMousePosition.current;
+      sendInput({ type: "mouse_up", button: 0, x, y });
       mouseIsPressed.current = false;
+      activePointerId.current = null;
     }
     mouseInScreen.current = false;
     pendingMouseMove.current = null;
@@ -921,23 +960,51 @@ function UFOModel({
       sendInput({ type: "key_up", key: e.keyCode, code: e.code });
     };
 
-    // Global pointerup handler to catch releases outside the canvas
+    // Global pointer handlers to catch releases outside the canvas or window
     const handleGlobalPointerUp = (e: PointerEvent) => {
       if (e.button !== 0) return; // Only left click
-      if (mouseIsPressed.current) {
-        sendInput({ type: "mouse_up", button: 0, x: 0.5, y: 0.5 });
-        mouseIsPressed.current = false;
-      }
+      if (!mouseIsPressed.current) return;
+      if (activePointerId.current !== null && e.pointerId !== activePointerId.current) return;
+
+      mouseIsPressed.current = false;
+      activePointerId.current = null;
+
+      const { x, y } = lastMousePosition.current;
+      sendInput({ type: "mouse_up", button: 0, x, y });
+    };
+
+    const handleGlobalPointerCancel = (e: PointerEvent) => {
+      if (!mouseIsPressed.current) return;
+      if (activePointerId.current !== null && e.pointerId !== activePointerId.current) return;
+
+      mouseIsPressed.current = false;
+      activePointerId.current = null;
+
+      const { x, y } = lastMousePosition.current;
+      sendInput({ type: "mouse_up", button: 0, x, y });
+    };
+
+    const handleWindowBlur = () => {
+      if (!mouseIsPressed.current) return;
+      mouseIsPressed.current = false;
+      activePointerId.current = null;
+
+      const { x, y } = lastMousePosition.current;
+      sendInput({ type: "mouse_up", button: 0, x, y });
     };
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("pointerup", handleGlobalPointerUp);
+    window.addEventListener("pointercancel", handleGlobalPointerCancel);
+    window.addEventListener("blur", handleWindowBlur);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("pointerup", handleGlobalPointerUp);
+      window.removeEventListener("pointercancel", handleGlobalPointerCancel);
+      window.removeEventListener("blur", handleWindowBlur);
     };
   }, []);
 
@@ -1066,12 +1133,10 @@ function UFOModel({
 function SplineVisualization({
   splineRef,
   selectedPointRef,
-  isDraggingPointRef,
   playerStateRef,
 }: {
   splineRef: React.MutableRefObject<Spline>;
   selectedPointRef: React.MutableRefObject<number | null>;
-  isDraggingPointRef: React.MutableRefObject<boolean>;
   playerStateRef: React.MutableRefObject<{
     p1x: number;
     p1y: number;
@@ -1328,7 +1393,6 @@ function SplinePointDragger({
 function GameObjectsField({
   gameObjectsRef,
   splineRef,
-  lengthScaleFactorRef,
   playerStateRef,
   objectModelsDataRef,
   objectModelsVersion,
@@ -1347,7 +1411,6 @@ function GameObjectsField({
     }>
   >;
   splineRef: React.MutableRefObject<Spline>;
-  lengthScaleFactorRef: React.MutableRefObject<number>;
   playerStateRef: React.MutableRefObject<{
     p1x: number;
     p1y: number;
@@ -1861,7 +1924,6 @@ function Scene({
         <SplineVisualization
           splineRef={splineRef}
           selectedPointRef={selectedPointRef}
-          isDraggingPointRef={isDraggingPointRef}
           playerStateRef={playerStateRef}
         />
       )}
@@ -1889,7 +1951,6 @@ function Scene({
       <GameObjectsField
         gameObjectsRef={gameObjectsRef}
         splineRef={splineRef}
-        lengthScaleFactorRef={lengthScaleFactorRef}
         playerStateRef={playerStateRef}
         objectModelsDataRef={objectModelsDataRef}
         objectModelsVersion={objectModelsVersion}

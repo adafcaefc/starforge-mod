@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import Image from "next/image";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -37,7 +36,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
   const [availableGlbFiles, setAvailableGlbFiles] = useState<string[]>([]);
   const [objectIds, setObjectIds] = useState<number[]>([]);
   const [newObjectId, setNewObjectId] = useState("");
-  const [spriteCache, setSpriteCache] = useState<{ [key: string]: string }>({});
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastIdCounter = useRef(0);
   const [selectedObjects, setSelectedObjects] = useState<Array<{ m_objectId: number }>>([]);
@@ -153,66 +151,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
     setObjectModels({ ...objectModelsDataRef.current });
     setObjectIds(Object.keys(objectModelsDataRef.current).map(Number).sort((a, b) => a - b));
   }, [objectModelsDataRef]);
-
-  // Generate sprite preview by combining detail and main textures
-  const generateSpritePreview = async (objectId: string): Promise<string> => {
-    if (spriteCache[objectId]) {
-      return spriteCache[objectId];
-    }
-
-    return new Promise((resolve) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 128;
-      canvas.height = 128;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        resolve("");
-        return;
-      }
-
-      // Load both detail and main textures
-      const detailImg = document.createElement("img");
-      const mainImg = document.createElement("img");
-      
-      let loadedCount = 0;
-      const checkLoaded = () => {
-        loadedCount++;
-        if (loadedCount === 2) {
-          // Draw main first, then detail on top
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          
-          // Draw main texture
-          if (mainImg.complete && mainImg.naturalWidth > 0) {
-            ctx.drawImage(mainImg, 0, 0, canvas.width, canvas.height);
-          }
-          
-          // Draw detail texture on top
-          if (detailImg.complete && detailImg.naturalWidth > 0) {
-            ctx.drawImage(detailImg, 0, 0, canvas.width, canvas.height);
-          }
-          
-          const dataUrl = canvas.toDataURL();
-          setSpriteCache((prev) => ({ ...prev, [objectId]: dataUrl }));
-          resolve(dataUrl);
-        }
-      };
-
-      detailImg.onerror = () => {
-        console.log(`Detail texture not found for object ${objectId}`);
-        checkLoaded();
-      };
-      mainImg.onerror = () => {
-        console.log(`Main texture not found for object ${objectId}`);
-        checkLoaded();
-      };
-      
-      detailImg.onload = checkLoaded;
-      mainImg.onload = checkLoaded;
-
-      detailImg.src = `/gd/objects/detail/${objectId}.png`;
-      mainImg.src = `/gd/objects/main/${objectId}.png`;
-    });
-  };
 
   // Save object models to the ref and to level
   const saveObjectModels = async () => {
@@ -386,7 +324,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
                             Selected in Editor ({Math.min(10, Array.from(new Set(selectedObjects.map(obj => obj.m_objectId))).length)})
                           </div>
                           {dropdownObjectIds.slice(0, Math.min(10, Array.from(new Set(selectedObjects.map(obj => obj.m_objectId))).length)).filter(id => id != null).map((id) => {
-                            const isInEditor = selectedObjects.some(obj => obj.m_objectId === id);
                             const idStr = String(id);
                             const alreadyExists = !!objectModels[idStr];
                             return (
@@ -427,7 +364,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
                         </>
                       )}
                       {dropdownObjectIds.slice(selectedObjects.length > 0 ? Math.min(10, Array.from(new Set(selectedObjects.map(obj => obj.m_objectId))).length) : 0).filter(id => id != null).map((id) => {
-                        const isInEditor = selectedObjects.some(obj => obj.m_objectId === id);
                         const idStr = String(id);
                         const alreadyExists = !!objectModels[idStr];
                         return (
@@ -443,7 +379,7 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
                               alreadyExists
                                 ? 'opacity-50 cursor-not-allowed bg-gray-800'
                                 : 'hover:bg-gray-700'
-                            } ${isInEditor ? 'bg-blue-900/20' : ''}`}
+                            }`}
                           >
                             <div className="w-8 h-8 bg-gray-900 rounded border border-gray-700 flex-shrink-0 flex items-center justify-center overflow-hidden">
                               <ObjectSpritePreview objectId={idStr} />
@@ -453,9 +389,6 @@ export default function ObjectModelsEditor({ objectModelsDataRef, splineRef, onC
                                 <span className="font-mono text-sm text-white">
                                   {id}
                                 </span>
-                                {isInEditor && (
-                                  <span className="text-xs text-blue-400">●</span>
-                                )}
                                 {alreadyExists && (
                                   <span className="text-xs text-gray-500">(exists)</span>
                                 )}
@@ -717,7 +650,6 @@ function ModelPreview({ modelPath }: { modelPath: string }) {
 
 // Component to display object sprite (combined detail + main)
 function ObjectSprite({ objectId, size = 24 }: { objectId: string; size?: number }) {
-  const [spriteUrl, setSpriteUrl] = useState<string>("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
