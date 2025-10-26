@@ -556,6 +556,7 @@ function UFOModel({
   const [canvasTexture, setCanvasTexture] = useState<THREE.CanvasTexture | null>(null);
   const prevTangentRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 1));
   const mouseInScreen = useRef(false);
+  const mouseIsPressed = useRef(false);
   const lastMouseMoveTime = useRef(0);
   const mouseMoveThrottle = 16;
   const pendingMouseMove = useRef<{ x: number; y: number } | null>(null);
@@ -849,21 +850,25 @@ function UFOModel({
   };
 
   const handleModelPointerDown = (event: any) => {
+    const button = event.nativeEvent?.button ?? 0;
+    if (button !== 0) return; // Only left click
+    mouseIsPressed.current = true;
     const screenIntersect = event.intersections?.find((intersect: any) => isScreenIntersection(intersect));
     if (screenIntersect && screenIntersect.uv) {
       const x = Math.max(0, Math.min(1, screenIntersect.uv.x));
       const y = Math.max(0, Math.min(1, 1 - screenIntersect.uv.y));
-      const button = event.nativeEvent?.button ?? 0;
       sendInput({ type: "mouse_down", button, x, y });
     }
   };
 
   const handleModelPointerUp = (event: any) => {
+    const button = event.nativeEvent?.button ?? 0;
+    if (button !== 0) return; // Only left click
+    mouseIsPressed.current = false;
     const screenIntersect = event.intersections?.find((intersect: any) => isScreenIntersection(intersect));
     if (screenIntersect && screenIntersect.uv) {
       const x = Math.max(0, Math.min(1, screenIntersect.uv.x));
       const y = Math.max(0, Math.min(1, 1 - screenIntersect.uv.y));
-      const button = event.nativeEvent?.button ?? 0;
       sendInput({ type: "mouse_up", button, x, y });
     }
   };
@@ -892,6 +897,11 @@ function UFOModel({
   };
 
   const handleModelPointerLeave = () => {
+    // If mouse was pressed when leaving, send mouse_up event
+    if (mouseIsPressed.current) {
+      sendInput({ type: "mouse_up", button: 0, x: 0.5, y: 0.5 });
+      mouseIsPressed.current = false;
+    }
     mouseInScreen.current = false;
     pendingMouseMove.current = null;
     if (mouseRafId.current !== null) {
@@ -911,12 +921,23 @@ function UFOModel({
       sendInput({ type: "key_up", key: e.keyCode, code: e.code });
     };
 
+    // Global pointerup handler to catch releases outside the canvas
+    const handleGlobalPointerUp = (e: PointerEvent) => {
+      if (e.button !== 0) return; // Only left click
+      if (mouseIsPressed.current) {
+        sendInput({ type: "mouse_up", button: 0, x: 0.5, y: 0.5 });
+        mouseIsPressed.current = false;
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("pointerup", handleGlobalPointerUp);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("pointerup", handleGlobalPointerUp);
     };
   }, []);
 
