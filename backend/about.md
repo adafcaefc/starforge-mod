@@ -1,4 +1,4 @@
-# About This Project
+## Preface
 
 Well, well… look who decided to show up.  
 Welcome aboard the spaceship **Starforge**. A masterpiece of science, ambition, and questionable decision-making.  
@@ -62,8 +62,7 @@ This allows you to:
 
 Alternatively, you may save your work **directly to the current level**.Doing so will embed your curve and object data into the level file itself.  
 
-When you play the level, the system will use this data to reconstruct the environment. If no data exists, the level will fail to load.  
-This is not a bug. It is punishment for negligence.
+When you play the level, the system will use this data to reconstruct the environment. If no data exists, the level will fail to load. This is not a bug. It is punishment for negligence.
 
 ---
 
