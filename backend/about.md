@@ -83,7 +83,7 @@ When you play the level, the system will use this data to reconstruct the enviro
 
 ## Third-Party Assets
 
-- [Mario Box (Low Poly)](https://sketchfab.com/3d-models/mario-box-low-poly-d0741311a88944d1a82daf2c84499246d)  
+- [Mario Box (Low Poly)](https://sketchfab.com/3d-models/mario-box-low-poly-d0741311a88944d1a82daf2c84499246)  
 - [Sci-Fi Box](https://sketchfab.com/3d-models/sci-fi--box-9162d24c326f4cdd9e495f154226b916)  
 - [Sci-Fi Crate 1](https://sketchfab.com/3d-models/sci-fi-crate-1-92fb9a66eb374d66ba944515768a66b4)  
 - [Sci-Fi Crate (Low Poly Game Asset)](https://sketchfab.com/3d-models/scifi-crate-low-poly-game-asset-textured-2a15ed1de7854ad9be9cdefc90cdc738)  
