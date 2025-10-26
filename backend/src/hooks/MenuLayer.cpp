@@ -629,5 +629,9 @@ class $modify(MyMenuLayer, MenuLayer) {
         if (spc::State::get()->m_server->getConnectionCount() == 0u) {
             spcOpenWebserverLink();
         }
+
+        // play welcome sound
+        const auto soundPath = spc::State::get()->getResourcesPath() / "sound" / "welcome.wav";
+        FMODAudioEngine::sharedEngine()->playEffect(soundPath.string());
     }
 };
