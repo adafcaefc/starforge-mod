@@ -76,8 +76,8 @@ When you play the level, the system will use this data to reconstruct the enviro
 - [websocketpp](https://github.com/zaphoyd/websocketpp)  
 - [geode](https://github.com/geode-sdk/geode)  
 - [srombauts/htmlbuilder](https://github.com/srombauts/htmlbuilder)  
-- [gd-render-texture](https://github.com/undefined06855/gd-render-texture)
-- [gmd-api](https://github.com/HJfod/GMD-API)
+- [undefined06855/gd-render-texture](https://github.com/undefined06855/gd-render-texture)
+- [hjfod/gmd-api](https://github.com/HJfod/GMD-API)
 
 ---
 
