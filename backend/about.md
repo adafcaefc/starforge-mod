@@ -1,7 +1,7 @@
 ## Preface
 
 Well, well… look who decided to show up.  
-Welcome aboard the spaceship **Starforge**. A masterpiece of science, ambition, and questionable decision-making.  
+Welcome aboard the spaceship **Starforge**. A masterpiece of science, ambition, and questionable decision making.  
 
 This project exists for reasons that may or may not involve scientific progress, artificial enlightenment, or the eternal promise of cake. Proceed with caution,  every action you take is being carefully monitored… for science.  
 
@@ -14,8 +14,7 @@ For optimal performance, play in windowed mode. Do not minimize the game executa
 ## Project Overview
 
 You may now enjoy the Starforge experience directly in your browser. 
-You are currently aboard a spacecraft. Try not to crash it.  
-You may still connect to your game session from this interface. Use **scroll** to zoom in or out.  
+You are currently aboard a spacecraft. Try not to crash it. You may still connect to your game session from this interface. Use **scroll** to zoom in or out.  
 
 To access this experience again, simply click the spaceship button in the main menu. Once inside the spaceship menu, you may either explore an existing stage or construct your own. 
 
