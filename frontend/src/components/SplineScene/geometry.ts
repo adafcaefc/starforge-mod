@@ -88,20 +88,36 @@ export class Spline {
     this.parameterListShouldBeUpdated = true;
   }
 
-  removeLastSegment() {
+  removeLastSegment(levelLength?: number) {
     if (this.segments.length === 0) return;
+    
+    // Store the target length before removing the segment
+    const targetLength = levelLength || this.length();
+    
     this.segments.pop();
     this.parameterListShouldBeUpdated = true;
+    
+    // Scale the spline to the target length
+    if (this.segments.length > 0) {
+      scaleSplineToLength(this, targetLength);
+    }
   }
 
-  addNewCurveToSpline() {
+  addNewCurveToSpline(levelLength?: number) {
     if (this.segments.length === 0) return;
+    
+    // Store the target length before adding the segment
+    const targetLength = levelLength || this.length();
+    
     const lastSegment = this.segments[this.segments.length - 1];
     const p1 = lastSegment.p2.clone();
     const m1 = lastSegment.p2.clone().multiplyScalar(2).sub(lastSegment.m2);
     const m2 = lastSegment.p2.clone().multiplyScalar(2).sub(lastSegment.m1);
     const p2 = lastSegment.p2.clone().multiplyScalar(2).sub(lastSegment.p1);
     this.addSegment(new CubicBezierCurve(p1, m1, m2, p2));
+    
+    // Scale the spline to the target length
+    scaleSplineToLength(this, targetLength);
   }
 
   getAllPoints(): THREE.Vector3[] {

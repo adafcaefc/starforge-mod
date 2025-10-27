@@ -211,16 +211,17 @@ export default function SplineScene() {
   }, []);
 
   const handleAddSegment = useCallback(() => {
+    const effectiveLevelLength = playerStateRef.current.levelLength / 100 || 30;
+    
     if (splineRef.current.segments.length === 0) {
       splineRef.current.addSegment(createDefaultSplineSegment());
       showToast("Created default segment", "info");
     } else {
-      splineRef.current.addNewCurveToSpline();
+      splineRef.current.addNewCurveToSpline(effectiveLevelLength);
     }
 
     splineRef.current.updateParameterList(100000);
     const splineLength = splineRef.current.length(1000);
-    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
     lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
   }, [showToast]);
 
@@ -230,10 +231,10 @@ export default function SplineScene() {
       return;
     }
 
-    splineRef.current.removeLastSegment();
+    const effectiveLevelLength = playerStateRef.current.levelLength / 100 || 30;
+    splineRef.current.removeLastSegment(effectiveLevelLength);
     splineRef.current.updateParameterList(100000);
     const splineLength = splineRef.current.length(1000);
-    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
     lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
   }, [showToast]);
 
