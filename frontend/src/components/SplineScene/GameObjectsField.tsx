@@ -8,6 +8,7 @@ import { Spline } from "./geometry";
 import { getEffectiveLevelLength } from "./splineUtils";
 import { GameObjectData, PlayerState } from "./types";
 import { ObjectModelsMap } from "@/types/objectModels";
+import { SPLINE_LENGTH_STEPS, GAME_COORDINATE_SCALE } from "./constants";
 
 interface GameObjectsFieldProps {
   gameObjectsRef: React.MutableRefObject<GameObjectData[]>;
@@ -48,10 +49,10 @@ export function GameObjectsField({
 
     const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
     
-    // Scale gameX to match effectiveLevelLength (which is levelLength / 100)
-    const scaledGameX = gameX / 100;
+    // Scale gameX to match effectiveLevelLength (which is levelLength / GAME_COORDINATE_SCALE)
+    const scaledGameX = gameX / GAME_COORDINATE_SCALE;
     const progress = Math.min(1, Math.max(0, scaledGameX / effectiveLevelLength));
-    const splineLength = spline.length(100);
+    const splineLength = spline.length(SPLINE_LENGTH_STEPS);
     const targetLength = progress * splineLength;
     const paramData = spline.findClosestByLength(targetLength);
     const position = spline.get(paramData.t);
@@ -70,7 +71,7 @@ export function GameObjectsField({
     }
     normal = new THREE.Vector3().crossVectors(tangent, right).normalize();
 
-    const yOffset = gameY / 100;
+    const yOffset = gameY / GAME_COORDINATE_SCALE;
 
     return {
       position: [position.x, position.y + yOffset, position.z] as [number, number, number],

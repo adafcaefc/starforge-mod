@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { SPLINE_SCALE_STEPS_PER_CURVE } from "./constants";
+
 
 export class CubicBezierCurve {
   p1: THREE.Vector3;
@@ -288,7 +290,7 @@ export function createDefaultSplineSegment(): CubicBezierCurve {
 export function scaleSplineToLength(
   spline: Spline,
   targetLength: number,
-  stepsPerCurve = 1000
+  stepsPerCurve = SPLINE_SCALE_STEPS_PER_CURVE
 ): number {
   if (spline.segments.length === 0) return 1;
   if (targetLength <= 0) return 1;

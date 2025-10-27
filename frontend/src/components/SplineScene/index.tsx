@@ -33,6 +33,7 @@ import {
   MAX_CAMERA_DISTANCE,
   MIN_CAMERA_DISTANCE,
   MIN_SCROLL_SENSITIVITY,
+  SPLINE_UPDATE_PARAMETER_STEPS,
 } from "./constants";
 import { ObjectModelsMap } from "@/types/objectModels";
 
@@ -200,7 +201,7 @@ export default function SplineScene() {
       const spline = splineRef.current;
       if (spline.segments.length === 0) {
         spline.addSegment(createDefaultSplineSegment());
-        spline.updateParameterList(100000);
+        spline.updateParameterList(SPLINE_UPDATE_PARAMETER_STEPS);
       }
     }, 1000);
 
@@ -217,7 +218,7 @@ export default function SplineScene() {
       splineRef.current.addNewCurveToSpline(effectiveLevelLength);
     }
 
-    splineRef.current.updateParameterList(100000);
+    splineRef.current.updateParameterList(SPLINE_UPDATE_PARAMETER_STEPS);
 
      }, [showToast]);
 
@@ -229,7 +230,7 @@ export default function SplineScene() {
 
     const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
     splineRef.current.removeLastSegment(effectiveLevelLength);
-    splineRef.current.updateParameterList(100000);
+    splineRef.current.updateParameterList(SPLINE_UPDATE_PARAMETER_STEPS);
   }, [showToast]);
 
   const handleSaveSpline = useCallback(() => {
@@ -317,11 +318,11 @@ export default function SplineScene() {
             objectModelsDataRef.current = levelData.objectModels as ObjectModelsMap;
           }
 
-          spline.updateParameterList(100000);
+          spline.updateParameterList(SPLINE_UPDATE_PARAMETER_STEPS);
           
           // Scale the spline to match the level length
           scaleSplineToEffectiveLength(spline, playerStateRef.current.levelLength);
-          spline.updateParameterList(100000);
+          spline.updateParameterList(SPLINE_UPDATE_PARAMETER_STEPS);
 
           showToast("Level data loaded successfully from JSON!", "success");
           console.log("Level data loaded from JSON:", levelData);

@@ -8,7 +8,7 @@ import { disposeObject } from "./threeUtils";
 import { CubicBezierCurve, Spline, createDefaultSplineSegment } from "./geometry";
 import { getEffectiveLevelLength, scaleSplineToEffectiveLength } from "./splineUtils";
 import { BackendConfigState, GameObjectData, PlayerState } from "./types";
-import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE } from "./constants";
+import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE, SPLINE_LENGTH_STEPS, SPLINE_UPDATE_PARAMETER_STEPS, GAME_COORDINATE_SCALE, PLAYER_Y_BASE_OFFSET } from "./constants";
 import { ObjectModelsMap } from "@/types/objectModels";
 
 interface UFOModelProps {
@@ -175,7 +175,7 @@ export function UFOModel({
                   }
                   
                   scaleSplineToEffectiveLength(spline, playerStateRef.current.levelLength);
-                  spline.updateParameterList(100000);
+                  spline.updateParameterList(SPLINE_UPDATE_PARAMETER_STEPS);
                 }
 
                 if (stateData.m_levelData && stateData.m_levelData.objectModels) {
@@ -205,7 +205,7 @@ export function UFOModel({
                 onGameModeChange(true);
                 if (splineRef.current.segments.length === 0) {
                   splineRef.current.addSegment(createDefaultSplineSegment());
-                  splineRef.current.updateParameterList(100000);
+                  splineRef.current.updateParameterList(SPLINE_UPDATE_PARAMETER_STEPS);
                   console.log("Editor enter received with empty spline; default spline applied");
                 }
               } else if (eventName === "editor_exit") {
@@ -492,15 +492,15 @@ export function UFOModel({
       const playerRotation = playerStateRef.current.p1rotation;
       const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
 
-      // Scale playerX to match effectiveLevelLength (which is levelLength / 100)
-      const scaledPlayerX = playerX / 100;
+      // Scale playerX to match effectiveLevelLength (which is levelLength / GAME_COORDINATE_SCALE)
+      const scaledPlayerX = playerX / GAME_COORDINATE_SCALE;
       const progress = Math.min(1, Math.max(0, scaledPlayerX / effectiveLevelLength));
 
       if (playerX < 100) {
         prevTangentRef.current.set(0, 0, 1);
       }
 
-      const splineLength = spline.length(100);
+      const splineLength = spline.length(SPLINE_LENGTH_STEPS);
       const targetLength = progress * splineLength;
       const paramData = spline.findClosestByLength(targetLength);
       const position = spline.get(paramData.t);
@@ -525,7 +525,7 @@ export function UFOModel({
       }
       normal = new THREE.Vector3().crossVectors(tangent, right).normalize();
 
-      const yOffset = (playerY - 30) / 100;
+      const yOffset = (playerY - PLAYER_Y_BASE_OFFSET) / GAME_COORDINATE_SCALE;
 
       modelRef.current.position.copy(position);
       modelRef.current.position.y += yOffset;

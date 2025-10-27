@@ -6,6 +6,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Spline } from "./geometry";
 import { getEffectiveLevelLength } from "./splineUtils";
 import { PlayerState } from "./types";
+import { SPLINE_UPDATE_PARAMETER_STEPS } from "./constants";
 
 interface SplinePointDraggerProps {
   splineRef: React.MutableRefObject<Spline>;
@@ -76,7 +77,7 @@ export function SplinePointDragger({
 
       if (intersectPoint) {
         splineRef.current.editPointSymmetricCenterFix(selectedPointRef.current, intersectPoint);
-        splineRef.current.updateParameterList(100000);
+        splineRef.current.updateParameterList(SPLINE_UPDATE_PARAMETER_STEPS);
       }
     }
   });

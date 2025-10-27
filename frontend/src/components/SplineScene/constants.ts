@@ -16,3 +16,15 @@ export const DEFAULT_HTTP_PORT = 6673;
 export const DEFAULT_WS_PORT = 6671;
 export const DEFAULT_API_BASE = `http://localhost:${DEFAULT_HTTP_PORT}`;
 export const DEFAULT_WS_URL = `ws://localhost:${DEFAULT_WS_PORT}/socket`;
+
+// Level length constants
+export const DEFAULT_LEVEL_LENGTH = 30;
+
+// Coordinate scaling constants
+export const GAME_COORDINATE_SCALE = 100; // Game coordinates to scene coordinates (divide by 100) - also used for effective length ratio (levelLength / 100)
+export const PLAYER_Y_BASE_OFFSET = 30; // Base Y offset for player positioning
+
+// Spline calculation constants
+export const SPLINE_LENGTH_STEPS = 100; // Steps for spline.length() calculation
+export const SPLINE_UPDATE_PARAMETER_STEPS = 100000; // Steps for spline.updateParameterList()
+export const SPLINE_SCALE_STEPS_PER_CURVE = 1000; // Steps per curve for scaling operations

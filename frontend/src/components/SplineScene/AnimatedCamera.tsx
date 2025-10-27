@@ -10,6 +10,8 @@ import {
   PLAYER_ROTATION_SCALE,
   MIN_CAMERA_DISTANCE,
   MAX_CAMERA_DISTANCE,
+  SPLINE_LENGTH_STEPS,
+  GAME_COORDINATE_SCALE,
 } from "./constants";
 
 interface AnimatedCameraProps {
@@ -117,17 +119,17 @@ export function AnimatedCamera({
       const playerY = playerStateRef.current.p1y;
       const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
 
-      // Scale playerX to match effectiveLevelLength (which is levelLength / 100)
-      const scaledPlayerX = playerX / 100;
+      // Scale playerX to match effectiveLevelLength (which is levelLength / GAME_COORDINATE_SCALE)
+      const scaledPlayerX = playerX / GAME_COORDINATE_SCALE;
       const progress = Math.min(1, Math.max(0, scaledPlayerX / effectiveLevelLength));
-      const splineLength = spline.length(100);
+      const splineLength = spline.length(SPLINE_LENGTH_STEPS);
       const scaledLength = progress * splineLength;
       const paramData = spline.findClosestByLength(scaledLength);
       const ufoPosition = spline.get(paramData.t);
       const splineTangent = spline.tangent(paramData.t).normalize();
       const splineNormal = spline.normal(paramData.t).normalize();
 
-      const yOffset = playerY / 100;
+      const yOffset = playerY / GAME_COORDINATE_SCALE;
       scaledUfoPosition = new THREE.Vector3(ufoPosition.x, ufoPosition.y + yOffset, ufoPosition.z);
 
       forward = splineTangent.clone();
