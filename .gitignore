@@ -3,3 +3,8 @@
 .vscode/
 *.code-workspace
 
+# Blender cache files
+__pycache__/
+*.blend1
+*.blend2
+*.blend@
