@@ -64,7 +64,6 @@ namespace spc {
                 loadColorAction(1010, state->m_liveLevelData.m_mg2Color, ca);
             }
         }
-
     }
 
     static void loadModeState() {

@@ -268,3 +268,34 @@ export function createDefaultSplineSegment(): CubicBezierCurve {
   segment.p2NormalAngle = 0;
   return segment;
 }
+
+export function scaleSplineToLength(
+  spline: Spline,
+  targetLength: number,
+  stepsPerCurve = 1000
+): number {
+  if (spline.segments.length === 0) return 1;
+  if (targetLength <= 0) return 1;
+
+  const currentLength = spline.length(stepsPerCurve);
+  if (currentLength <= 1e-6) return 1;
+
+  const scaleFactor = targetLength / currentLength;
+  if (Math.abs(scaleFactor - 1) < 1e-6) return 1;
+
+  const pivot = spline.segments[0].p1.clone();
+
+  const scalePoint = (point: THREE.Vector3) => {
+    point.sub(pivot).multiplyScalar(scaleFactor).add(pivot);
+  };
+
+  for (const segment of spline.segments) {
+    scalePoint(segment.p1);
+    scalePoint(segment.m1);
+    scalePoint(segment.m2);
+    scalePoint(segment.p2);
+  }
+
+  spline.updateParameterList(stepsPerCurve * spline.segments.length);
+  return scaleFactor;
+}

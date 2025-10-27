@@ -74,13 +74,21 @@ namespace spc {
             // load spline data
             m_levelData.reset();
             m_levelData = ldata::getLevelData(layer);
-
+            // recalculate level length for editor layers
+            if (auto levelEditorLayer = typeinfo_cast<LevelEditorLayer*>(layer)) {
+                // recalculate level length
+                float maxX = 0.0f;
+                for (auto obj : CCArrayExt<::GameObject*>(levelEditorLayer->m_objects)) {
+                    if (obj->m_positionX > maxX)
+                        maxX = obj->m_positionX;
+                }
+                layer->m_levelLength = maxX;
+            }
             // load level ID and length
             m_levelLength = layer->m_levelLength;
             if (auto level = layer->m_level) {
                 m_levelID = level->m_levelID;
             }
-
             // load game objects
             for (auto objx : CCArrayExt<::GameObject*>(layer->m_objects)) {
                 if (objx == layer->m_anticheatSpike) { continue; }
