@@ -66,8 +66,6 @@ export function SplineVisualization({ splineRef, selectedPointRef, playerStateRe
     if (!spline || spline.segments.length === 0 || !controlPointGeometriesRef.current) return;
 
     const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
-    const defaultLevelLength = 30;
-    const xScale = effectiveLevelLength / defaultLevelLength;
 
     if (lineRef.current) {
       const points: THREE.Vector3[] = [];
@@ -76,7 +74,7 @@ export function SplineVisualization({ splineRef, selectedPointRef, playerStateRe
       for (let i = 0; i <= steps; i++) {
         const t = (i / steps) * maxT;
         const point = spline.get(t);
-        points.push(new THREE.Vector3(point.x * xScale, point.y, point.z));
+        points.push(new THREE.Vector3(point.x, point.y, point.z));
       }
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       lineRef.current.geometry.dispose();
@@ -106,7 +104,7 @@ export function SplineVisualization({ splineRef, selectedPointRef, playerStateRe
           mesh.userData.isControlPoint = true;
           controlPointsRef.current!.add(mesh);
         }
-        mesh.position.set(pos.x * xScale, pos.y, pos.z);
+        mesh.position.set(pos.x, pos.y, pos.z);
         mesh.userData.pointIndex = pointIndex;
 
         const isSelected = selectedPointRef.current === pointIndex;

@@ -75,17 +75,7 @@ export function SplinePointDragger({
       raycasterRef.current.ray.intersectPlane(dragPlaneRef.current, intersectPoint);
 
       if (intersectPoint) {
-        const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
-        const defaultLevelLength = 30;
-        const xScale = effectiveLevelLength / defaultLevelLength;
-
-        const unscaledPoint = new THREE.Vector3(
-          intersectPoint.x / xScale,
-          intersectPoint.y,
-          intersectPoint.z
-        );
-
-        splineRef.current.editPointSymmetricCenterFix(selectedPointRef.current, unscaledPoint);
+        splineRef.current.editPointSymmetricCenterFix(selectedPointRef.current, intersectPoint);
         splineRef.current.updateParameterList(100000);
       }
     }

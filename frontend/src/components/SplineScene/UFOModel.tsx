@@ -125,7 +125,7 @@ export function UFOModel({
                 prevTangentRef.current.set(0, 0, 1);
 
                 if (stateData.m_levelLength !== undefined) {
-                  playerStateRef.current.levelLength = stateData.m_levelLength || 30;
+                  playerStateRef.current.levelLength = stateData.m_levelLength || 3000;
                 }
 
                 if (stateData.m_gameObjects && Array.isArray(stateData.m_gameObjects)) {
@@ -171,15 +171,11 @@ export function UFOModel({
                   } else {
                     spline.addSegment(createDefaultSplineSegment());
                     console.log("Level data contained no spline segments; default spline applied");
-                  }
-
-                  spline.updateParameterList(100000);
                   
-                  // Scale the spline to match the level length
+                  }
+                  
                   scaleSplineToEffectiveLength(spline, playerStateRef.current.levelLength);
                   spline.updateParameterList(100000);
-                  
-                 
                 }
 
                 if (stateData.m_levelData && stateData.m_levelData.objectModels) {
@@ -496,9 +492,6 @@ export function UFOModel({
       const playerRotation = playerStateRef.current.p1rotation;
       const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
 
-      const defaultLevelLength = 30;
-      const xScale = effectiveLevelLength / defaultLevelLength;
-
       // Scale playerX to match effectiveLevelLength (which is levelLength / 100)
       const scaledPlayerX = playerX / 100;
       const progress = Math.min(1, Math.max(0, scaledPlayerX / effectiveLevelLength));
@@ -514,8 +507,8 @@ export function UFOModel({
       const rawTangent = spline.tangent(paramData.t).normalize();
       const rawNormal = spline.normal(paramData.t).normalize();
 
-      let tangent = new THREE.Vector3(rawTangent.x * xScale, rawTangent.y, rawTangent.z).normalize();
-      let normal = new THREE.Vector3(rawNormal.x * xScale, rawNormal.y, rawNormal.z).normalize();
+      let tangent = rawTangent.clone();
+      let normal = rawNormal.clone();
 
       if (prevTangentRef.current.dot(tangent) < 0) {
         tangent.multiplyScalar(-1);
@@ -532,10 +525,9 @@ export function UFOModel({
       }
       normal = new THREE.Vector3().crossVectors(tangent, right).normalize();
 
-      const scaledPosition = new THREE.Vector3(position.x * xScale, position.y, position.z);
       const yOffset = (playerY - 30) / 100;
 
-      modelRef.current.position.copy(scaledPosition);
+      modelRef.current.position.copy(position);
       modelRef.current.position.y += yOffset;
 
       const forward = tangent.clone();

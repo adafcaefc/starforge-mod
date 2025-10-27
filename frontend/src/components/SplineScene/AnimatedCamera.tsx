@@ -117,9 +117,6 @@ export function AnimatedCamera({
       const playerY = playerStateRef.current.p1y;
       const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
 
-      const defaultLevelLength = 30;
-      const xScale = effectiveLevelLength / defaultLevelLength;
-
       // Scale playerX to match effectiveLevelLength (which is levelLength / 100)
       const scaledPlayerX = playerX / 100;
       const progress = Math.min(1, Math.max(0, scaledPlayerX / effectiveLevelLength));
@@ -130,9 +127,8 @@ export function AnimatedCamera({
       const splineTangent = spline.tangent(paramData.t).normalize();
       const splineNormal = spline.normal(paramData.t).normalize();
 
-      const scaledUfoX = ufoPosition.x * xScale;
       const yOffset = playerY / 100;
-      scaledUfoPosition = new THREE.Vector3(scaledUfoX, ufoPosition.y + yOffset, ufoPosition.z);
+      scaledUfoPosition = new THREE.Vector3(ufoPosition.x, ufoPosition.y + yOffset, ufoPosition.z);
 
       forward = splineTangent.clone();
       upVector = splineNormal.clone().multiplyScalar(-1);
@@ -154,13 +150,7 @@ export function AnimatedCamera({
         upVector.applyQuaternion(rotationQuat);
       }
 
-      const scaledForward = new THREE.Vector3(
-        forward.x * xScale,
-        forward.y,
-        forward.z
-      ).normalize();
-
-      forward = scaledForward;
+      forward.normalize();
       upVector.normalize();
 
       right = new THREE.Vector3().crossVectors(upVector, forward);

@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { GameObject } from "./GameObject";
 import { Spline } from "./geometry";
+import { getEffectiveLevelLength } from "./splineUtils";
 import { GameObjectData, PlayerState } from "./types";
 import { ObjectModelsMap } from "@/types/objectModels";
 
@@ -45,10 +46,11 @@ export function GameObjectsField({
       };
     }
 
-    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
-    const defaultLevelLength = 3000;
-    const xScale = effectiveLevelLength / defaultLevelLength;
-    const progress = Math.min(1, Math.max(0, gameX / effectiveLevelLength));
+    const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
+    
+    // Scale gameX to match effectiveLevelLength (which is levelLength / 100)
+    const scaledGameX = gameX / 100;
+    const progress = Math.min(1, Math.max(0, scaledGameX / effectiveLevelLength));
     const splineLength = spline.length(100);
     const targetLength = progress * splineLength;
     const paramData = spline.findClosestByLength(targetLength);
@@ -56,8 +58,8 @@ export function GameObjectsField({
     const rawTangent = spline.tangent(paramData.t).normalize();
     const rawNormal = spline.normal(paramData.t).normalize();
 
-    let tangent = new THREE.Vector3(rawTangent.x * xScale, rawTangent.y, rawTangent.z).normalize();
-    let normal = new THREE.Vector3(rawNormal.x * xScale, rawNormal.y, rawNormal.z).normalize();
+    let tangent = rawTangent.clone();
+    let normal = rawNormal.clone();
 
     let right = new THREE.Vector3().crossVectors(normal, tangent);
     if (right.lengthSq() < 1e-6) {
@@ -68,11 +70,10 @@ export function GameObjectsField({
     }
     normal = new THREE.Vector3().crossVectors(tangent, right).normalize();
 
-    const scaledX = position.x * xScale;
     const yOffset = gameY / 100;
 
     return {
-      position: [scaledX, position.y + yOffset, position.z] as [number, number, number],
+      position: [position.x, position.y + yOffset, position.z] as [number, number, number],
       tangent,
       normal,
     };
