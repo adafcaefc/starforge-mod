@@ -76,6 +76,7 @@ When you play the level, the system will use this data to reconstruct the enviro
 - [srombauts/htmlbuilder](https://github.com/srombauts/htmlbuilder)  
 - [undefined06855/gd-render-texture](https://github.com/undefined06855/gd-render-texture)
 - [hjfod/gmd-api](https://github.com/HJfod/GMD-API)
+- [gd-place-2022](https://github.com/PlaceGD/gd-place-2022)
 
 ---
 
