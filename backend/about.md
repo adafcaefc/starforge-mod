@@ -17,7 +17,9 @@ You may now enjoy the Starforge experience directly in your browser.
 You are currently aboard a spacecraft. Try not to crash it.  
 You may still connect to your game session from this interface. Use **scroll** to zoom in or out.  
 
-You are also granted access to the **Level Editor**.  
+To access this experience again, simply click the spaceship button in the main menu. Once inside the spaceship menu, you may either explore an existing planet level or construct your own. 
+
+To construct your own stage, you are also granted access to the **Level Editor**.  
 A tool designed to give you creative freedom and infinite opportunity for error.
 
 The Level Editor provides a **free camera**.  
@@ -25,24 +27,24 @@ You may navigate your environment as if you were in control.
 You are not.  
 
 ### Camera Controls
-- **Right Click + Shift** — Pan the camera.  
-- **Right Mouse Drag** — Rotate the camera.  
-- **Scroll Wheel** — Zoom in or out.  
+- **Right Click + Shift** - Pan the camera.  
+- **Right Mouse Drag** - Rotate the camera.  
+- **Scroll Wheel** - Zoom in or out.  
 
 In the **top-left corner** of the interface, you will find several buttons.  
 Do not be alarmed. They are functional. Mostly.
 
-- **Add Segment** — Inserts a new spline segment.  
+- **Add Segment** - Inserts a new spline segment.  
   This defines the path or terrain curve of your level.  
-- **Remove Segment** — Deletes the currently selected segment.  
+- **Remove Segment** - Deletes the currently selected segment.  
   The system will not ask for confirmation. It assumes you know what you are doing.  
-- **Save to JSON** — Exports your current spline data to a `.json` file.  
+- **Save to JSON** - Exports your current spline data to a `.json` file.  
   A convenient way to back up your progress before inevitably breaking it.  
-- **Load from JSON** — Imports spline data from a `.json` file.  
+- **Load from JSON** - Imports spline data from a `.json` file.  
   Useful for restoring previous work or overwriting something important by mistake.  
-- **Save to Level** — Commits both your spline and object model data to the current level file.  
+- **Save to Level** - Commits both your spline and object model data to the current level file.  
   Once saved, your design becomes part of the level environment. Permanently. Probably.  
-- **Adjust Curve** — Manipulate the control points to refine your spline shape.  
+- **Adjust Curve** - Manipulate the control points to refine your spline shape.  
   This is where art meets mathematics. You will hate both.
 
 You may also open the **Object Model Editor**.  
