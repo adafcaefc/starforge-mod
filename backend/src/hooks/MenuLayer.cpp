@@ -327,6 +327,37 @@ G3DProgressBar* G3DProgressBar::create() {
     return nullptr;
 }
 
+static CCSprite* spcGetMeteorButtonSprite() {
+    auto animation = cocos2d::CCAnimation::create();
+    animation->setDelayPerUnit(1.0f / 8.0f);
+    addAnimations(animation, spc::State::get()->getResourcesPath() / "rendered" / "meteor1", 64u);
+    auto gif = cocos2d::CCSprite::create();
+    gif->runAction(cocos2d::CCRepeatForever::create(cocos2d::CCAnimate::create(animation)));
+
+    auto btnSprite = CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png");
+
+    btnSprite->setScale(3.5f);
+    btnSprite->setOpacity(0);
+
+    btnSprite->addChild(gif);
+    gif->setPosition(ccp(
+        btnSprite->getContentSize().width / 2.f,
+        btnSprite->getContentSize().height / 2.f
+    ));
+
+    gif->setScale(1.6f);
+    
+    auto label = CCLabelBMFont::create("Test Level", "bigFont.fnt");
+    label->setScale(1.7f);
+    label->setPosition(ccp(
+        btnSprite->getContentSize().width / 2.f,
+        225.f
+    ));
+    btnSprite->addChild(label);
+
+    return btnSprite;
+}
+
 static CCSprite* spcGetUfoBtnSprite() {
     auto animation = cocos2d::CCAnimation::create();
     animation->setDelayPerUnit(1.0f / 24.0f);
@@ -615,7 +646,7 @@ class $modify(MyMenuLayer, MenuLayer) {
 
         // add a button to the menu that represents a planet
         auto planetBtn = CCMenuItemSpriteExtra::create(
-            spriteFromData(readFromFileSpecial(spc::State::get()->getResourcesPath() / "image" / "planet1.png")),
+            spcGetMeteorButtonSprite(),
             layer,
             menu_selector(MyMenuLayer::onPlayLevel1)
         );
