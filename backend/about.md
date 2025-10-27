@@ -21,9 +21,7 @@ To access this experience again, simply click the spaceship button in the main m
 To construct your own stage, you are also granted access to the **Level Editor**.  
 A tool designed to give you creative freedom and infinite opportunity for error.
 
-The Level Editor provides a **free camera**.  
-You may navigate your environment as if you were in control.  
-You are not.  
+The Level Editor provides a **free camera**. You may navigate your environment as if you were in control. You are not.  
 
 ### Camera Controls
 - **Right Click + Shift** - Pan the camera.  
@@ -46,9 +44,8 @@ Do not be alarmed. They are functional. Mostly.
 - **Adjust Curve** - Manipulate the control points to refine your spline shape.  
   This is where art meets mathematics. You will hate both.
 
-You may also open the **Object Model Editor**.  
-This is where objects within your level gain physical representation.  
-Or at least the illusion of it.
+### Object Model Editor
+You may also open the **Object Model Editor**. This is where objects within your level gain physical representation. Or at least the illusion of it.
 
 For each object, you may:
 - Assign a **3D model** (`.glb` format).  
