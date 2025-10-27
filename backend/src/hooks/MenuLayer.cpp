@@ -1,6 +1,7 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/MenuLayer.hpp>
 #include <Geode/modify/DialogLayer.hpp>
+#include <Geode/modify/LoadingLayer.hpp>
 #include <filesystem>
 #include <fstream>
 #include <hjfod.gmd-api/include/GMD.hpp>
@@ -21,15 +22,42 @@ static std::vector<char> readFromFileSpecial(
     return buffer;
 }
 
-static cocos2d::CCSprite* spriteFromData(std::vector<char> data)
+static cocos2d::CCSprite* spriteFromData(const std::vector<char>& data)
 {
+    const auto fnv1a64 = [](const std::vector<char>& data) -> uint64_t {
+        constexpr uint64_t FNV_OFFSET_BASIS = 1469598103934665603ull;
+        constexpr uint64_t FNV_PRIME = 1099511628211ull;
+        uint64_t hash = FNV_OFFSET_BASIS;
+        for (unsigned char c : data)
+            hash = (hash ^ c) * FNV_PRIME;
+        return hash;
+        };
+    static std::unordered_map<uint64_t, cocos2d::CCTexture2D*> cache;
+    const auto hash = fnv1a64(data);
+    if (cache.contains(hash)) 
+        return cocos2d::CCSprite::createWithTexture(cache[hash]);
     cocos2d::CCImage* image = new cocos2d::CCImage();
     image->initWithImageData((void*)&data.front(), data.size());
     cocos2d::CCTexture2D* texture = new cocos2d::CCTexture2D();
     texture->initWithImage(image);
     delete image;
+    texture->retain();
+    cache[hash] = texture;
     return cocos2d::CCSprite::createWithTexture(texture);
 }
+
+
+class $modify(LoadingLayer) {
+    void loadAssets() {
+        const auto parentPath = spc::State::get()->getResourcesPath() / "rendered";
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(parentPath)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".png") {
+                spriteFromData(readFromFileSpecial(entry.path()));
+            }
+        }
+        LoadingLayer::loadAssets();
+    }
+};
 
 static void addAnimations(
     cocos2d::CCAnimation* animation,
@@ -160,17 +188,17 @@ bool G3DProgressBar::init() {
 }
 
 static GJGameLevel* getLevelByID(int levelID) {
-    const auto path = spc::State::get()->getResourcesPath() / "level" / (std::to_string(levelID) + ".gmd");
+    const auto gmdName = fmt::format("{}.gmd", levelID);
+    const auto path = spc::State::get()->getResourcesPath() / "level" / gmdName;
     if (std::filesystem::exists(path))
     {
+        const auto levelTag = fmt::format("spc-level-{}", levelID);
         // check first whether GameManager has a child with the same levelID
-        for (auto child : CCArrayExt<CCNode*>(GameManager::get()->getChildren())) {
-            auto level = typeinfo_cast<GJGameLevel*>(child);
+        if (auto level = typeinfo_cast<GJGameLevel*>(GameManager::get()->getChildByID(levelTag))) {
             if (level && level->m_levelID == levelID) {
                 return level;
             }
         }
-
         if (auto level = gmd::importGmdAsLevel(path).unwrapOr(nullptr))
         {
             level->m_levelID = levelID;
@@ -178,6 +206,7 @@ static GJGameLevel* getLevelByID(int levelID) {
             level->m_levelType = GJLevelType::Saved;
             level->m_stars = 0;
             GameManager::get()->addChild(level);
+            level->setID(levelTag);
             return level;
         }
     }
