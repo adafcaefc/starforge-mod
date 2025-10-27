@@ -17,7 +17,7 @@ You may now enjoy the Starforge experience directly in your browser.
 You are currently aboard a spacecraft. Try not to crash it.  
 You may still connect to your game session from this interface. Use **scroll** to zoom in or out.  
 
-To access this experience again, simply click the spaceship button in the main menu. Once inside the spaceship menu, you may either explore an existing planet level or construct your own. 
+To access this experience again, simply click the spaceship button in the main menu. Once inside the spaceship menu, you may either explore an existing stage or construct your own. 
 
 To construct your own stage, you are also granted access to the **Level Editor**.  
 A tool designed to give you creative freedom and infinite opportunity for error.
@@ -103,3 +103,4 @@ Special thanks to all contributors, testers, and helpers.
 - [TimeStepYT](https://github.com/TimeStepYT)  
 - [maxnut](https://github.com/maxnut)  
 - [RainixGD](https://github.com/RainixGD)  
+- [A145](https://www.youtube.com/@A145)

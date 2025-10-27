@@ -12,6 +12,7 @@ import {
   MAX_CAMERA_DISTANCE,
   SPLINE_LENGTH_STEPS,
   GAME_COORDINATE_SCALE,
+  PLAYER_Y_BASE_OFFSET,
 } from "./constants";
 
 interface AnimatedCameraProps {
@@ -189,7 +190,7 @@ export function AnimatedCamera({
     viewUp = new THREE.Vector3().crossVectors(viewRight, viewForward).normalize();
     viewUp.negate();
 
-    const baseFollowDistance = 0.17 + distance * 0.05;
+    const baseFollowDistance = PLAYER_Y_BASE_OFFSET / GAME_COORDINATE_SCALE / 2 + distance * 0.05;
     const cockpitVerticalOffset = 0.3;
 
     const desiredPosition = scaledUfoPosition

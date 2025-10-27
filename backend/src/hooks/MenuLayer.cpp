@@ -375,8 +375,13 @@ static CCSprite* spcGetMeteorButtonSprite() {
     ));
 
     gif->setScale(1.6f);
-    
-    auto label = CCLabelBMFont::create("Test Level", "bigFont.fnt");
+
+    std::string levelName = "Level Not Found";
+    auto level = getLevelByID(800000000);
+    if (level)
+        levelName = level->m_levelName;
+
+    auto label = CCLabelBMFont::create(levelName.c_str(), "bigFont.fnt");
     label->setScale(1.7f);
     label->setPosition(ccp(
         btnSprite->getContentSize().width / 2.f,
