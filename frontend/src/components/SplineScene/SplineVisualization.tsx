@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { Spline } from "./geometry";
+import { getEffectiveLevelLength } from "./splineUtils";
 import { PlayerState } from "./types";
 
 interface SplineVisualizationProps {
@@ -64,8 +65,8 @@ export function SplineVisualization({ splineRef, selectedPointRef, playerStateRe
     const spline = splineRef.current;
     if (!spline || spline.segments.length === 0 || !controlPointGeometriesRef.current) return;
 
-    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
-    const defaultLevelLength = 3000;
+    const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
+    const defaultLevelLength = 30;
     const xScale = effectiveLevelLength / defaultLevelLength;
 
     if (lineRef.current) {

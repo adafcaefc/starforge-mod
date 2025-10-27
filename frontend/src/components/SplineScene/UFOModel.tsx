@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { disposeObject } from "./threeUtils";
 import { CubicBezierCurve, Spline, createDefaultSplineSegment } from "./geometry";
+import { getEffectiveLevelLength, scaleSplineToEffectiveLength } from "./splineUtils";
 import { BackendConfigState, GameObjectData, PlayerState } from "./types";
 import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE } from "./constants";
 import { ObjectModelsMap } from "@/types/objectModels";
@@ -13,7 +14,6 @@ import { ObjectModelsMap } from "@/types/objectModels";
 interface UFOModelProps {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<PlayerState>;
-  lengthScaleFactorRef: React.MutableRefObject<number>;
   gameObjectsRef: React.MutableRefObject<GameObjectData[]>;
   objectModelsDataRef: React.MutableRefObject<ObjectModelsMap>;
   onGameModeChange: (isEditorMode: boolean) => void;
@@ -24,7 +24,6 @@ interface UFOModelProps {
 export function UFOModel({
   splineRef,
   playerStateRef,
-  lengthScaleFactorRef,
   gameObjectsRef,
   objectModelsDataRef,
   onGameModeChange,
@@ -46,12 +45,6 @@ export function UFOModel({
   const mouseMoveThrottle = 16;
   const pendingMouseMove = useRef<{ x: number; y: number } | null>(null);
   const mouseRafId = useRef<number | null>(null);
-
-  const updateLengthScale = () => {
-    const splineLength = splineRef.current.length(1000);
-    const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
-    lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
-  };
 
   const width = 440;
   const height = 240;
@@ -132,8 +125,7 @@ export function UFOModel({
                 prevTangentRef.current.set(0, 0, 1);
 
                 if (stateData.m_levelLength !== undefined) {
-                  playerStateRef.current.levelLength = stateData.m_levelLength || 3000;
-                  updateLengthScale();
+                  playerStateRef.current.levelLength = stateData.m_levelLength || 30;
                 }
 
                 if (stateData.m_gameObjects && Array.isArray(stateData.m_gameObjects)) {
@@ -182,7 +174,12 @@ export function UFOModel({
                   }
 
                   spline.updateParameterList(100000);
-                  updateLengthScale();
+                  
+                  // Scale the spline to match the level length
+                  scaleSplineToEffectiveLength(spline, playerStateRef.current.levelLength);
+                  spline.updateParameterList(100000);
+                  
+                 
                 }
 
                 if (stateData.m_levelData && stateData.m_levelData.objectModels) {
@@ -213,7 +210,6 @@ export function UFOModel({
                 if (splineRef.current.segments.length === 0) {
                   splineRef.current.addSegment(createDefaultSplineSegment());
                   splineRef.current.updateParameterList(100000);
-                  updateLengthScale();
                   console.log("Editor enter received with empty spline; default spline applied");
                 }
               } else if (eventName === "editor_exit") {
@@ -498,20 +494,20 @@ export function UFOModel({
       const playerX = playerStateRef.current.p1x;
       const playerY = playerStateRef.current.p1y;
       const playerRotation = playerStateRef.current.p1rotation;
-      const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+      const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
 
-      const defaultLevelLength = 3000;
+      const defaultLevelLength = 30;
       const xScale = effectiveLevelLength / defaultLevelLength;
 
-      const splineLength = spline.length(100);
-      lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
-
-      const progress = Math.min(1, Math.max(0, playerX / effectiveLevelLength));
+      // Scale playerX to match effectiveLevelLength (which is levelLength / 100)
+      const scaledPlayerX = playerX / 100;
+      const progress = Math.min(1, Math.max(0, scaledPlayerX / effectiveLevelLength));
 
       if (playerX < 100) {
         prevTangentRef.current.set(0, 0, 1);
       }
 
+      const splineLength = spline.length(100);
       const targetLength = progress * splineLength;
       const paramData = spline.findClosestByLength(targetLength);
       const position = spline.get(paramData.t);

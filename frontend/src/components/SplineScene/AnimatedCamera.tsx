@@ -4,6 +4,7 @@ import React, { useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { Spline } from "./geometry";
+import { getEffectiveLevelLength } from "./splineUtils";
 import { CameraControlState, EditorCameraState, PlayerState } from "./types";
 import {
   PLAYER_ROTATION_SCALE,
@@ -14,7 +15,6 @@ import {
 interface AnimatedCameraProps {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<PlayerState>;
-  lengthScaleFactorRef: React.MutableRefObject<number>;
   cameraControlRef: React.MutableRefObject<CameraControlState>;
   isEditorMode: boolean;
   editorCameraRef: React.MutableRefObject<EditorCameraState>;
@@ -23,7 +23,6 @@ interface AnimatedCameraProps {
 export function AnimatedCamera({
   splineRef,
   playerStateRef,
-  lengthScaleFactorRef,
   cameraControlRef,
   isEditorMode,
   editorCameraRef,
@@ -116,13 +115,16 @@ export function AnimatedCamera({
     if (hasSpline) {
       const playerX = playerStateRef.current.p1x;
       const playerY = playerStateRef.current.p1y;
-      const lengthScaleFactor = lengthScaleFactorRef.current;
-      const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
+      const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
 
-      const defaultLevelLength = 3000;
+      const defaultLevelLength = 30;
       const xScale = effectiveLevelLength / defaultLevelLength;
 
-      const scaledLength = playerX * lengthScaleFactor;
+      // Scale playerX to match effectiveLevelLength (which is levelLength / 100)
+      const scaledPlayerX = playerX / 100;
+      const progress = Math.min(1, Math.max(0, scaledPlayerX / effectiveLevelLength));
+      const splineLength = spline.length(100);
+      const scaledLength = progress * splineLength;
       const paramData = spline.findClosestByLength(scaledLength);
       const ufoPosition = spline.get(paramData.t);
       const splineTangent = spline.tangent(paramData.t).normalize();

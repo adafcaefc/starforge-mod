@@ -15,7 +15,6 @@ import { AnimatedCamera } from "./AnimatedCamera";
 interface SceneProps {
   splineRef: React.MutableRefObject<Spline>;
   playerStateRef: React.MutableRefObject<PlayerState>;
-  lengthScaleFactorRef: React.MutableRefObject<number>;
   cameraControlRef: React.MutableRefObject<CameraControlState>;
   gameObjectsRef: React.MutableRefObject<GameObjectData[]>;
   selectedPointRef: React.MutableRefObject<number | null>;
@@ -35,7 +34,6 @@ interface SceneProps {
 export function Scene({
   splineRef,
   playerStateRef,
-  lengthScaleFactorRef,
   cameraControlRef,
   gameObjectsRef,
   selectedPointRef,
@@ -79,7 +77,6 @@ export function Scene({
       <UFOModel
         splineRef={splineRef}
         playerStateRef={playerStateRef}
-        lengthScaleFactorRef={lengthScaleFactorRef}
         gameObjectsRef={gameObjectsRef}
         objectModelsDataRef={objectModelsDataRef}
         onGameModeChange={onGameModeChange}
@@ -96,7 +93,6 @@ export function Scene({
       <AnimatedCamera
         splineRef={splineRef}
         playerStateRef={playerStateRef}
-        lengthScaleFactorRef={lengthScaleFactorRef}
         cameraControlRef={cameraControlRef}
         isEditorMode={isEditorMode}
         editorCameraRef={editorCameraRef}

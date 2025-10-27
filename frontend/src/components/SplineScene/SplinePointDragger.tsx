@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Spline } from "./geometry";
+import { getEffectiveLevelLength } from "./splineUtils";
 import { PlayerState } from "./types";
 
 interface SplinePointDraggerProps {
@@ -74,8 +75,8 @@ export function SplinePointDragger({
       raycasterRef.current.ray.intersectPlane(dragPlaneRef.current, intersectPoint);
 
       if (intersectPoint) {
-        const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
-        const defaultLevelLength = 3000;
+        const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
+        const defaultLevelLength = 30;
         const xScale = effectiveLevelLength / defaultLevelLength;
 
         const unscaledPoint = new THREE.Vector3(

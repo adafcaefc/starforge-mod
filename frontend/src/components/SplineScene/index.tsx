@@ -9,6 +9,7 @@ import { OrbitControls } from "@react-three/drei";
 import { Scene } from "./Scene";
 import { SplineEditorControls } from "./SplineEditorControls";
 import { CubicBezierCurve, Spline, createDefaultSplineSegment } from "./geometry";
+import { getEffectiveLevelLength, scaleSplineToEffectiveLength } from "./splineUtils";
 import {
   BackendConfig,
   BackendConfigState,
@@ -128,7 +129,6 @@ export default function SplineScene() {
     p1rotation: 0,
     levelLength: 3000,
   });
-  const lengthScaleFactorRef = useRef(1);
   const gameObjectsRef = useRef<GameObjectData[]>([]);
   const objectModelsDataRef = useRef<ObjectModelsMap>({});
   const cameraControlRef = useRef<CameraControlState>({
@@ -201,9 +201,6 @@ export default function SplineScene() {
       if (spline.segments.length === 0) {
         spline.addSegment(createDefaultSplineSegment());
         spline.updateParameterList(100000);
-
-        const splineLength = spline.length(1000);
-        lengthScaleFactorRef.current = splineLength / 3000;
       }
     }, 1000);
 
@@ -211,7 +208,7 @@ export default function SplineScene() {
   }, []);
 
   const handleAddSegment = useCallback(() => {
-    const effectiveLevelLength = playerStateRef.current.levelLength / 100 || 30;
+    const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
     
     if (splineRef.current.segments.length === 0) {
       splineRef.current.addSegment(createDefaultSplineSegment());
@@ -221,9 +218,8 @@ export default function SplineScene() {
     }
 
     splineRef.current.updateParameterList(100000);
-    const splineLength = splineRef.current.length(1000);
-    lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
-  }, [showToast]);
+
+     }, [showToast]);
 
   const handleRemoveSegment = useCallback(() => {
     if (splineRef.current.segments.length <= 1) {
@@ -231,11 +227,9 @@ export default function SplineScene() {
       return;
     }
 
-    const effectiveLevelLength = playerStateRef.current.levelLength / 100 || 30;
+    const effectiveLevelLength = getEffectiveLevelLength(playerStateRef.current.levelLength);
     splineRef.current.removeLastSegment(effectiveLevelLength);
     splineRef.current.updateParameterList(100000);
-    const splineLength = splineRef.current.length(1000);
-    lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
   }, [showToast]);
 
   const handleSaveSpline = useCallback(() => {
@@ -324,9 +318,10 @@ export default function SplineScene() {
           }
 
           spline.updateParameterList(100000);
-          const splineLength = spline.length(1000);
-          const effectiveLevelLength = playerStateRef.current.levelLength || 3000;
-          lengthScaleFactorRef.current = splineLength / effectiveLevelLength;
+          
+          // Scale the spline to match the level length
+          scaleSplineToEffectiveLength(spline, playerStateRef.current.levelLength);
+          spline.updateParameterList(100000);
 
           showToast("Level data loaded successfully from JSON!", "success");
           console.log("Level data loaded from JSON:", levelData);
@@ -539,7 +534,6 @@ export default function SplineScene() {
           <Scene
             splineRef={splineRef}
             playerStateRef={playerStateRef}
-            lengthScaleFactorRef={lengthScaleFactorRef}
             cameraControlRef={cameraControlRef}
             gameObjectsRef={gameObjectsRef}
             selectedPointRef={selectedPointRef}
