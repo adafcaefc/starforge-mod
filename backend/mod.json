@@ -8,6 +8,7 @@
 	"version": "v1.0.0-beta.1",
 	"developer": "adaf",
 	"description": "Starforge is an experimental space simulation and level creation system where science, design, and mild existential dread collide.",
+	"repository": "https://github.com/adafcaefc/starforge-mod",
 	"settings": {
 		"webserver-port": {
 			"type": "int",
