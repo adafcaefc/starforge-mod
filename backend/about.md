@@ -48,7 +48,7 @@ Do not be alarmed. They are functional. Mostly.
 You may also open the **Object Model Editor**. This is where objects within your level gain physical representation. Or at least the illusion of it.
 
 For each object, you may:
-- Assign a **3D model** (`.glb` format).  
+- Assign a **3D model**.  
 - Adjust **scale** along the X and Y axes.  
 - Enable **rotation** for those who enjoy excessive motion.  
 
