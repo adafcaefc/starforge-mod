@@ -1,7 +1,6 @@
 ## Preface
 
-Well, well… look who decided to show up.  
-Welcome aboard the spaceship **Starforge**. A masterpiece of science, ambition, and questionable decision making.  
+Well, well… look who decided to show up. Welcome aboard the spaceship **Starforge**. A masterpiece of science, ambition, and questionable decision making.  
 
 This project exists for reasons that may or may not involve scientific progress, artificial enlightenment, or the eternal promise of cake. Proceed with caution,  every action you take is being carefully monitored… for science.  
 
@@ -18,8 +17,7 @@ You are currently aboard a spacecraft. Try not to crash it. You may still connec
 
 To access this experience again, simply click the spaceship button in the main menu. Once inside the spaceship menu, you may either explore an existing stage or construct your own. 
 
-To construct your own stage, you are also granted access to the **Level Editor**.  
-A tool designed to give you creative freedom and infinite opportunity for error.
+To construct your own stage, you are also granted access to the **Level Editor**. A tool designed to give you creative freedom and infinite opportunity for error.
 
 The Level Editor provides a **free camera**. You may navigate your environment as if you were in control. You are not.  
 
@@ -52,13 +50,12 @@ For each object, you may:
 - Adjust **scale** along the X and Y axes.  
 - Enable **rotation** for those who enjoy excessive motion.  
 
-Both **curve data** and **object model data** can be saved and loaded as `.json` files.  
-This allows you to:
+Both **curve data** and **object model data** can be saved and loaded as `.json` files. This allows you to:
 - Store your progress.  
 - Share it with others.  
 - Corrupt it beyond recovery.
 
-Alternatively, you may save your work **directly to the current level**.Doing so will embed your curve and object data into the level file itself.  
+Alternatively, you may save your work **directly to the current level**. Doing so will embed your curve and object data into the level file itself.  
 
 When you play the level, the system will use this data to reconstruct the environment. If no data exists, the level will fail to load. This is not a bug. It is punishment for negligence.
 
