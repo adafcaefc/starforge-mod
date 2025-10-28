@@ -26,8 +26,7 @@ The Level Editor provides a **free camera**. You may navigate your environment a
 - **Right Mouse Drag** - Rotate the camera.  
 - **Scroll Wheel** - Zoom in or out.  
 
-In the **top-left corner** of the interface, you will find several buttons.  
-Do not be alarmed. They are functional. Mostly.
+In the **top-left corner** of the interface, you will find several buttons. Do not be alarmed. They are functional. Mostly.
 
 - **Add Segment** - Inserts a new spline segment.  
   This defines the path or terrain curve of your level.  
