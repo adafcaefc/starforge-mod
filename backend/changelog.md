@@ -1,3 +1,6 @@
+# v1.0.0-beta.3
+- Updated about.md
+
 # v1.0.0-beta.2
 - Removed std::fs::path::string() calls
 - Removed CCScheduler::update hooks
