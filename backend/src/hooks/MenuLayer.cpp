@@ -2,6 +2,7 @@
 #include <Geode/modify/MenuLayer.hpp>
 #include <Geode/modify/DialogLayer.hpp>
 #include <Geode/modify/LoadingLayer.hpp>
+#include <Geode/modify/CCEGLView.hpp>
 #include <filesystem>
 #include <fstream>
 #include <hjfod.gmd-api/include/GMD.hpp>
@@ -13,14 +14,30 @@ using namespace geode::prelude;
 static std::vector<char> readFromFileSpecial(
     const std::filesystem::path& path)
 {
-    if (!std::filesystem::exists(path)) return std::vector<char>();
-    std::ifstream file(path, std::ios::binary | std::ios::ate);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-    std::vector<char> buffer(size);
-    file.read(buffer.data(), size);
-    return buffer;
+    try {
+        if (!std::filesystem::exists(path)) return std::vector<char>();
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        std::streamsize size = file.tellg();
+        file.seekg(0, std::ios::beg);
+        std::vector<char> buffer(size);
+        file.read(buffer.data(), size);
+        return buffer;
+    } 
+    catch (...) {
+        return std::vector<char>();
+    }
 }
+
+
+static std::unordered_map<uint64_t, cocos2d::CCTexture2D*> s_spriteFromDataCache;
+
+// fix texture on reload
+class $modify(cocos2d::CCEGLView) {
+    void toggleFullScreen(bool value, bool borderless, bool fix) {
+        s_spriteFromDataCache.clear();
+        CCEGLView::toggleFullScreen(value, borderless, fix);
+    }
+};
 
 static cocos2d::CCSprite* spriteFromData(const std::vector<char>& data)
 {
@@ -32,28 +49,30 @@ static cocos2d::CCSprite* spriteFromData(const std::vector<char>& data)
             hash = (hash ^ c) * FNV_PRIME;
         return hash;
         };
-    static std::unordered_map<uint64_t, cocos2d::CCTexture2D*> cache;
     const auto hash = fnv1a64(data);
-    if (cache.contains(hash)) 
-        return cocos2d::CCSprite::createWithTexture(cache[hash]);
+    if (s_spriteFromDataCache.contains(hash))
+        return cocos2d::CCSprite::createWithTexture(s_spriteFromDataCache[hash]);
     cocos2d::CCImage* image = new cocos2d::CCImage();
     image->initWithImageData((void*)&data.front(), data.size());
     cocos2d::CCTexture2D* texture = new cocos2d::CCTexture2D();
     texture->initWithImage(image);
     delete image;
     texture->retain();
-    cache[hash] = texture;
+    s_spriteFromDataCache[hash] = texture;
     return cocos2d::CCSprite::createWithTexture(texture);
 }
 
-
 class $modify(LoadingLayer) {
     void loadAssets() {
-        const auto parentPath = spc::State::get()->getResourcesPath() / "rendered";
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(parentPath)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".png") {
-                spriteFromData(readFromFileSpecial(entry.path()));
+        try {
+            const auto parentPath = spc::State::get()->getResourcesPath() / "rendered";
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(parentPath)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".png") {
+                    spriteFromData(readFromFileSpecial(entry.path()));
+                }
             }
+        }
+        catch (...) {
         }
         LoadingLayer::loadAssets();
     }
@@ -64,12 +83,15 @@ static void addAnimations(
     const std::filesystem::path& path,
     const uint16_t maxSize = 2048u)
 {
-    for (uint16_t i = 1u; i < maxSize; ++i)
-    {
-        auto imgPath = path / fmt::format("{:04}.png", i);
-        if (!std::filesystem::exists(imgPath)) break;
-        auto icon = spriteFromData(readFromFileSpecial(imgPath));
-        animation->addSpriteFrame(icon->displayFrame());
+    for (uint16_t i = 1u; i < maxSize; ++i) {
+        try {
+            auto imgPath = path / fmt::format("{:04}.png", i);
+            if (!std::filesystem::exists(imgPath)) break;
+            auto icon = spriteFromData(readFromFileSpecial(imgPath));
+            animation->addSpriteFrame(icon->displayFrame());
+        }
+        catch (...) {
+        }
     }
 }
 
@@ -100,7 +122,7 @@ class $modify(CustomDialogLayer, DialogLayer) {
         auto customData = customDataIt->second;
 
         if (customData->m_soundOnAppear.has_value())
-            FMODAudioEngine::sharedEngine()->playEffect(customData->m_soundOnAppear.value().string().c_str());
+            FMODAudioEngine::sharedEngine()->playEffect(geode::utils::string::pathToString(customData->m_soundOnAppear.value()).c_str());
 
         m_mainLayer->removeChildByID("custom_portrait"_spr);
         if (customData->m_potraitImage.has_value()) {
@@ -695,7 +717,7 @@ class $modify(MyMenuLayer, MenuLayer) {
             spcOpenWebserverLink();
             // play welcome sound
             const auto soundPath = spc::State::get()->getResourcesPath() / "sound" / "welcome.wav";
-            FMODAudioEngine::sharedEngine()->playEffect(soundPath.string());
+            FMODAudioEngine::sharedEngine()->playEffect(geode::utils::string::pathToString(soundPath));
         }
     }
 };
