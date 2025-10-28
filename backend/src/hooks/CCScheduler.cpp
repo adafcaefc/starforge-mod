@@ -146,35 +146,33 @@ namespace spc {
 
 
 
-class $modify(cocos2d::CCScheduler) {
-    template <auto Id, typename Duration, auto Interval, typename Func>
-    void doEvery(Func&& func) {
-        using Clock = std::chrono::steady_clock;
-        static auto lastTime = Clock::now();
+template <auto Id, typename Duration, auto Interval, typename Func>
+void doEvery(Func&& func) {
+    using Clock = std::chrono::steady_clock;
+    static auto lastTime = Clock::now();
 
-        auto currentTime = Clock::now();
-        auto elapsed = std::chrono::duration_cast<Duration>(currentTime - lastTime);
+    auto currentTime = Clock::now();
+    auto elapsed = std::chrono::duration_cast<Duration>(currentTime - lastTime);
 
-        if (elapsed.count() >= Interval) {
-            std::invoke(std::forward<Func>(func));  // supports lambdas, std::function, etc.
-            lastTime = currentTime;
-        }
+    if (elapsed.count() >= Interval) {
+        std::invoke(std::forward<Func>(func));  // supports lambdas, std::function, etc.
+        lastTime = currentTime;
     }
+}
 
-
+class SpcScheduled {
+public:
     void update(float dt) {
-        static bool init = false;
-
-        cocos2d::CCScheduler::update(dt);
-
         doEvery<__COUNTER__, std::chrono::milliseconds, 1>([] {
             spc::spcSendGameState();
             });
-
-
         doEvery<__COUNTER__, std::chrono::milliseconds, 16>([] {
             spc::spcCaptureFrame();
             spc::spcSendLevelUpdate();
             });
     }
 };
+
+$execute{
+    GameManager::get()->schedule(schedule_selector(SpcScheduled::update), 0.f);
+}
