@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_map>
+#include <Geode/Geode.hpp>
 
 #include "spc_socket.h"
 #include "spc_level_data.h"
@@ -10,9 +12,14 @@ namespace spc {
     class State {
     public:
         std::shared_ptr<socket::SocketServer> m_server = nullptr;
+        std::unordered_map<uint64_t, cocos2d::CCTexture2D*> m_spriteFromDataCache;
 
         std::filesystem::path getResourcesPath() const {
             return geode::Mod::get()->getResourcesDir() / "_geode";
+        }
+        
+        void clearSpriteCache() {
+            m_spriteFromDataCache.clear();
         }
 
         struct GameObject {

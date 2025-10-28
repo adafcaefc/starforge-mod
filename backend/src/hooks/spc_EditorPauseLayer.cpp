@@ -1,6 +1,6 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/EditorPauseLayer.hpp>
-#include "../spc_state.h"
+#include "spc_state.h"
 
 using namespace geode::prelude;
 

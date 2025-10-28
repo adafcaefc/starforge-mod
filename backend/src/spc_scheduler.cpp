@@ -1,8 +1,8 @@
 #include <Geode/Geode.hpp>
-#include <Geode/modify/CCScheduler.hpp>
 #include <Geode/modify/PlayLayer.hpp>
-#include "../spc_state.h"
-#include "../spc_webserver.h"
+#include "spc_scheduler.h"
+#include "spc_state.h"
+#include "spc_webserver.h"
 
 #include <RenderTexture.hpp>
 
@@ -171,8 +171,8 @@ namespace spc {
             }
         }
     };
-}
 
-$execute{
-    GameManager::get()->schedule(schedule_selector(spc::SpcScheduled::update), 0.f);
+    void initScheduler() {
+        GameManager::get()->schedule(schedule_selector(spc::SpcScheduled::update), 0.f);
+    }
 }
