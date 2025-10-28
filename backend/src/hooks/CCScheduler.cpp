@@ -142,37 +142,37 @@ namespace spc {
         // Send live level data for player position updates
         state->m_server->send(state->getLiveLevelDataMessage());
     }
-}
 
+    template <auto Id, typename Duration, auto Interval, typename Func>
+    void doEvery(Func&& func) {
+        using Clock = std::chrono::steady_clock;
+        static auto lastTime = Clock::now();
 
+        auto currentTime = Clock::now();
+        auto elapsed = std::chrono::duration_cast<Duration>(currentTime - lastTime);
 
-template <auto Id, typename Duration, auto Interval, typename Func>
-void doEvery(Func&& func) {
-    using Clock = std::chrono::steady_clock;
-    static auto lastTime = Clock::now();
-
-    auto currentTime = Clock::now();
-    auto elapsed = std::chrono::duration_cast<Duration>(currentTime - lastTime);
-
-    if (elapsed.count() >= Interval) {
-        std::invoke(std::forward<Func>(func));  // supports lambdas, std::function, etc.
-        lastTime = currentTime;
+        if (elapsed.count() >= Interval) {
+            std::invoke(std::forward<Func>(func));  // supports lambdas, std::function, etc.
+            lastTime = currentTime;
+        }
     }
-}
 
-class SpcScheduled {
-public:
-    void update(float dt) {
-        doEvery<__COUNTER__, std::chrono::milliseconds, 1>([] {
-            spc::spcSendGameState();
-            });
-        doEvery<__COUNTER__, std::chrono::milliseconds, 16>([] {
-            spc::spcCaptureFrame();
-            spc::spcSendLevelUpdate();
-            });
-    }
-};
+    class SpcScheduled {
+    public:
+        void update(float dt) {
+            if (State::get()->m_server->getConnectionCount() > 0u) {
+                doEvery<__COUNTER__, std::chrono::milliseconds, 1>([] {
+                    spc::spcSendGameState();
+                    });
+                doEvery<__COUNTER__, std::chrono::milliseconds, 16>([] {
+                    spc::spcCaptureFrame();
+                    spc::spcSendLevelUpdate();
+                    });
+            }
+        }
+    };
+}
 
 $execute{
-    GameManager::get()->schedule(schedule_selector(SpcScheduled::update), 0.f);
+    GameManager::get()->schedule(schedule_selector(spc::SpcScheduled::update), 0.f);
 }
