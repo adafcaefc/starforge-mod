@@ -8,7 +8,7 @@ import { disposeObject } from "./threeUtils";
 import { CubicBezierCurve, Spline, createDefaultSplineSegment } from "./geometry";
 import { getEffectiveLevelLength, scaleSplineToEffectiveLength } from "./splineUtils";
 import { BackendConfigState, GameObjectData, PlayerState } from "./types";
-import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE, SPLINE_LENGTH_STEPS, SPLINE_UPDATE_PARAMETER_STEPS, GAME_COORDINATE_SCALE, PLAYER_Y_BASE_OFFSET } from "./constants";
+import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE, SPLINE_LENGTH_STEPS, SPLINE_UPDATE_PARAMETER_STEPS, GAME_COORDINATE_SCALE, PLAYER_Y_BASE_OFFSET, UFO_BLOCK_HIDE_X_THRESHOLD, UFO_BLOCK_HIDE_Y_THRESHOLD } from "./constants";
 import { ObjectModelsMap } from "@/types/objectModels";
 
 interface UFOModelProps {
@@ -553,6 +553,28 @@ export function UFOModel({
 
       const floatingY = Math.sin(time * 2) * 0.005;
       modelRef.current.position.y += floatingY;
+
+      // Hide blocks directly above the UFO
+      const ufoX = modelRef.current.position.x;
+      const ufoY = modelRef.current.position.y;
+
+      gameObjectsRef.current.forEach((gameObject) => {
+        // Compare X positions in game coordinates (along the level)
+        const xDiff = Math.abs(gameObject.x - playerX);
+        
+        // Compare Y offsets: both are offsets from the spline in game coordinates
+        const ufoYOffset = playerY - PLAYER_Y_BASE_OFFSET;
+        const blockYOffset = gameObject.y;
+        const yDiff = blockYOffset - ufoYOffset;
+        
+        // Block is above UFO if it's at similar X position and higher Y offset
+        const isAbove = yDiff > 0 && 
+                       xDiff < UFO_BLOCK_HIDE_X_THRESHOLD * GAME_COORDINATE_SCALE && 
+                       yDiff < UFO_BLOCK_HIDE_Y_THRESHOLD * GAME_COORDINATE_SCALE;
+
+        // Mark whether this block is above UFO
+        gameObject.isAboveUFO = isAbove;
+      });
     }
   });
 

@@ -19,6 +19,7 @@ export interface GameObjectData {
   visible: boolean;
   objectId: number;
   nativePtr: number;
+  isAboveUFO?: boolean; // Track if block is currently above UFO
 }
 
 export interface PlayerState {

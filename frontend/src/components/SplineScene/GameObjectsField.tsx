@@ -83,6 +83,11 @@ export function GameObjectsField({
   return (
     <>
       {objects.map((obj, index) => {
+        // Skip rendering if object is not visible (from level data) or is above UFO
+        if (obj.isAboveUFO === true) {
+          return null;
+        }
+        
         const splineData = mapToSplineCoords(obj.x, obj.y);
         return (
           <GameObject
