@@ -17,6 +17,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Build Frontend
+        shell: pwsh
         run: |
           cd frontend
           npm install
@@ -29,6 +30,7 @@ jobs:
           path: backend 
 
       - name: Compress Build Output
+        shell: pwsh
         run: |
           cd backend
           mkdir out
@@ -39,8 +41,8 @@ jobs:
           cp logo.png out/
           cp mod.json out/
           cp build/*.dll out/
-          Remove-Item -Path 'out\*.psd' -Recurse -Force
-          Remove-Item -Path 'out\*.blend' -Recurse -Force
+          Remove-Item -Path 'out\*.psd' -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path 'out\*.blend' -Recurse -Force -ErrorAction SilentlyContinue
           cd out
           7z a -tzip adaf.starforge.geode -mx9 *
          
