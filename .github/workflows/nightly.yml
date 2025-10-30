@@ -39,8 +39,8 @@ jobs:
           cp logo.png out/
           cp mod.json out/
           cp build/*.dll out/
-          del /S /Q out\*.psd
-          del /S /Q out\*.blend
+          Remove-Item -Path 'out\*.psd' -Recurse -Force
+          Remove-Item -Path 'out\*.blend' -Recurse -Force
           cd out
           7z a -tzip adaf.starforge.geode -mx9 *
          
