@@ -8,7 +8,7 @@ import { disposeObject } from "./threeUtils";
 import { CubicBezierCurve, Spline, createDefaultSplineSegment } from "./geometry";
 import { getEffectiveLevelLength, scaleSplineToEffectiveLength } from "./splineUtils";
 import { BackendConfigState, GameObjectData, PlayerState } from "./types";
-import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE, SPLINE_LENGTH_STEPS, SPLINE_UPDATE_PARAMETER_STEPS, GAME_COORDINATE_SCALE, PLAYER_Y_BASE_OFFSET, UFO_BLOCK_HIDE_X_THRESHOLD, UFO_BLOCK_HIDE_Y_THRESHOLD, UFO_BLOCK_MIN_OPACITY, UFO_BLOCK_MAX_OPACITY } from "./constants";
+import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE, SPLINE_LENGTH_STEPS, SPLINE_UPDATE_PARAMETER_STEPS, GAME_COORDINATE_SCALE, PLAYER_Y_BASE_OFFSET, UFO_BLOCK_HIDE_X_THRESHOLD, UFO_BLOCK_HIDE_Y_THRESHOLD, UFO_BLOCK_MIN_OPACITY, UFO_BLOCK_MAX_OPACITY, UFO_BLOCK_FADE_DISTANCE_FACTOR } from "./constants";
 import { ObjectModelsMap } from "@/types/objectModels";
 
 interface UFOModelProps {
@@ -584,8 +584,8 @@ export function UFOModel({
           // Use Euclidean distance for smooth gradual fade
           const distance = Math.sqrt(xNormalized * xNormalized + yNormalized * yNormalized);
           
-          // Clamp distance to [0, 1] and interpolate opacity
-          const clampedDistance = Math.min(1, distance) / 3;
+          // Clamp distance to [0, 1] and interpolate opacity from min to max
+          const clampedDistance = Math.min(1, distance * UFO_BLOCK_FADE_DISTANCE_FACTOR);
           gameObject.visibilityFactor = UFO_BLOCK_MIN_OPACITY + 
                                         (UFO_BLOCK_MAX_OPACITY - UFO_BLOCK_MIN_OPACITY) * clampedDistance;
         } else {

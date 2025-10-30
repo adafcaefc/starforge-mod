@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useMemo } from "react";
+import React, { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { MemoizedGameObject as GameObject } from "./GameObject";

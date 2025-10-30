@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { ObjectModelsMap } from "@/types/objectModels";
 import { loadModel, disposeObject } from "./threeUtils";
-import { getCachedMaterials, isCached } from "./materialCache";
+import { getCachedMaterials } from "./materialCache";
 
 interface GameObjectProps {
   position: [number, number, number];
@@ -40,8 +40,8 @@ export function GameObject({
   const [scene, setScene] = useState<THREE.Group | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const lastVisibilityFactorRef = useRef<number>(1.0);
-  const materialsRef = useRef<THREE.Material[]>([]); // Cache materials that need opacity updates
   const meshesRef = useRef<THREE.Mesh[]>([]); // Cache mesh references for material swapping
+  const currentOpacityLevelRef = useRef<number>(1.0); // Track which opacity level is currently applied
 
   const seededRandom = (seed: number, offset = 0) => {
     const x = Math.sin(seed + offset) * 10000;
@@ -94,32 +94,19 @@ export function GameObject({
         const clonedScene = originalScene.clone(true);
         
         // Clear previous references
-        materialsRef.current = [];
         meshesRef.current = [];
         
-        // Single traverse to collect all meshes
-        // Just collect meshes - don't modify materials yet
-        const meshes: THREE.Mesh[] = [];
+        // Single traverse to collect all mesh references
         clonedScene.traverse((child: any) => {
-          if (child.isMesh && child.material) {
-            meshes.push(child);
-            // Store material references from the cloned scene
-            if (Array.isArray(child.material)) {
-              child.material.forEach((mat: THREE.Material) => {
-                materialsRef.current.push(mat);
-              });
-            } else {
-              materialsRef.current.push(child.material);
-            }
+          if (child.isMesh) {
+            meshesRef.current.push(child);
           }
         });
-        
-        // Store mesh references once
-        meshesRef.current = meshes;
         
         // Set the initial visibility factor to match current state
         // This prevents unnecessary material swaps on first frame
         lastVisibilityFactorRef.current = visibilityFactor;
+        currentOpacityLevelRef.current = visibilityFactor;
         
         setScene(clonedScene);
       })
@@ -188,33 +175,44 @@ export function GameObject({
         const newCachedMaterials = selectedModel ? getCachedMaterials(selectedModel, visibilityFactor) : null;
         
         if (newCachedMaterials && newCachedMaterials.length > 0) {
-          // Swap to pre-cached materials - instant material change!
-          let materialIndex = 0;
+          // Only swap if we're actually changing to a different opacity level
+          // This avoids redundant GPU updates when opacity hasn't changed enough
+          const targetOpacity = newCachedMaterials[0]?.opacity ?? visibilityFactor;
+          if (Math.abs(targetOpacity - currentOpacityLevelRef.current) > 0.05) {
+            // Swap to pre-cached materials - instant material change!
+            let materialIndex = 0;
+            const meshes = meshesRef.current;
+            for (let i = 0; i < meshes.length; i++) {
+              const mesh = meshes[i];
+              if (Array.isArray(mesh.material)) {
+                const newMaterials: THREE.Material[] = [];
+                for (let j = 0; j < mesh.material.length; j++) {
+                  if (materialIndex < newCachedMaterials.length) {
+                    newMaterials.push(newCachedMaterials[materialIndex++]);
+                  } else {
+                    newMaterials.push(mesh.material[j]);
+                  }
+                }
+                mesh.material = newMaterials;
+              } else if (materialIndex < newCachedMaterials.length) {
+                mesh.material = newCachedMaterials[materialIndex++];
+              }
+            }
+            currentOpacityLevelRef.current = targetOpacity;
+          }
+        } else {
+          // Fallback: Modify opacity directly (slower but works)
+          // Only do this if we don't have cached materials
           const meshes = meshesRef.current;
           for (let i = 0; i < meshes.length; i++) {
             const mesh = meshes[i];
             if (Array.isArray(mesh.material)) {
-              const newMaterials: THREE.Material[] = [];
-              for (let j = 0; j < mesh.material.length; j++) {
-                if (materialIndex < newCachedMaterials.length) {
-                  newMaterials.push(newCachedMaterials[materialIndex++]);
-                } else {
-                  newMaterials.push(mesh.material[j]);
-                }
-              }
-              mesh.material = newMaterials;
-            } else if (materialIndex < newCachedMaterials.length) {
-              mesh.material = newCachedMaterials[materialIndex++];
+              mesh.material.forEach((mat: THREE.Material) => {
+                mat.opacity = visibilityFactor;
+              });
+            } else if (mesh.material) {
+              mesh.material.opacity = visibilityFactor;
             }
-          }
-          // Update material references
-          materialsRef.current = newCachedMaterials;
-        } else {
-          // Fallback: Modify opacity directly (slower but works)
-          const materials = materialsRef.current;
-          const len = materials.length;
-          for (let i = 0; i < len; i++) {
-            materials[i].opacity = visibilityFactor;
           }
         }
         
@@ -225,31 +223,40 @@ export function GameObject({
       const fullOpacityMaterials = selectedModel ? getCachedMaterials(selectedModel, 1.0) : null;
       
       if (fullOpacityMaterials && fullOpacityMaterials.length > 0) {
-        let materialIndex = 0;
+        // Only swap if not already at full opacity
+        if (Math.abs(currentOpacityLevelRef.current - 1.0) > 0.05) {
+          let materialIndex = 0;
+          const meshes = meshesRef.current;
+          for (let i = 0; i < meshes.length; i++) {
+            const mesh = meshes[i];
+            if (Array.isArray(mesh.material)) {
+              const newMaterials: THREE.Material[] = [];
+              for (let j = 0; j < mesh.material.length; j++) {
+                if (materialIndex < fullOpacityMaterials.length) {
+                  newMaterials.push(fullOpacityMaterials[materialIndex++]);
+                } else {
+                  newMaterials.push(mesh.material[j]);
+                }
+              }
+              mesh.material = newMaterials;
+            } else if (materialIndex < fullOpacityMaterials.length) {
+              mesh.material = fullOpacityMaterials[materialIndex++];
+            }
+          }
+          currentOpacityLevelRef.current = 1.0;
+        }
+      } else {
+        // Fallback
         const meshes = meshesRef.current;
         for (let i = 0; i < meshes.length; i++) {
           const mesh = meshes[i];
           if (Array.isArray(mesh.material)) {
-            const newMaterials: THREE.Material[] = [];
-            for (let j = 0; j < mesh.material.length; j++) {
-              if (materialIndex < fullOpacityMaterials.length) {
-                newMaterials.push(fullOpacityMaterials[materialIndex++]);
-              } else {
-                newMaterials.push(mesh.material[j]);
-              }
-            }
-            mesh.material = newMaterials;
-          } else if (materialIndex < fullOpacityMaterials.length) {
-            mesh.material = fullOpacityMaterials[materialIndex++];
+            mesh.material.forEach((mat: THREE.Material) => {
+              mat.opacity = 1.0;
+            });
+          } else if (mesh.material) {
+            mesh.material.opacity = 1.0;
           }
-        }
-        materialsRef.current = fullOpacityMaterials;
-      } else {
-        // Fallback
-        const materials = materialsRef.current;
-        const len = materials.length;
-        for (let i = 0; i < len; i++) {
-          materials[i].opacity = 1.0;
         }
       }
       
