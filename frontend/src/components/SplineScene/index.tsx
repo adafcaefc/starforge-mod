@@ -10,6 +10,7 @@ import { Scene } from "./Scene";
 import { SplineEditorControls } from "./SplineEditorControls";
 import { CubicBezierCurve, Spline, createDefaultSplineSegment } from "./geometry";
 import { getEffectiveLevelLength, scaleSplineToEffectiveLength } from "./splineUtils";
+import { preloadAllObjectMaterials } from "./materialCache";
 import {
   BackendConfig,
   BackendConfigState,
@@ -177,6 +178,11 @@ export default function SplineScene() {
         resolved: true,
       };
       console.log("Backend configuration resolved:", config);
+    });
+    
+    // Preload all object materials with different opacity levels
+    preloadAllObjectMaterials().catch((error) => {
+      console.error("Failed to preload object materials:", error);
     });
   }, []);
 
