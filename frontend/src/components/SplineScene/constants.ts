@@ -28,3 +28,11 @@ export const PLAYER_Y_BASE_OFFSET = 30; // Base Y offset for player positioning
 export const SPLINE_LENGTH_STEPS = 100; // Steps for spline.length() calculation
 export const SPLINE_UPDATE_PARAMETER_STEPS = 100000; // Steps for spline.updateParameterList()
 export const SPLINE_SCALE_STEPS_PER_CURVE = 1000; // Steps per curve for scaling operations
+
+// UFO block hiding constants
+export const UFO_BLOCK_HIDE_X_THRESHOLD = 1.5; // X position threshold for hiding blocks above UFO (in scene coordinates)
+export const UFO_BLOCK_HIDE_Y_THRESHOLD = 1; // Y position threshold for hiding blocks above UFO (in scene coordinates)
+export const UFO_BLOCK_MIN_OPACITY = 0.1; // Minimum opacity for blocks directly above UFO (0 = fully transparent, 1 = fully opaque)
+export const UFO_BLOCK_MAX_OPACITY = 1.0; // Maximum opacity for blocks far from UFO
+export const UFO_BLOCK_FADE_DISTANCE_FACTOR = 0.2; // Factor to multiply distance for fade gradient (lower = more gradual fade)
+export const HIDE_Y_BASE_OFFSET = -30; // Base Y offset for hiding calculations
