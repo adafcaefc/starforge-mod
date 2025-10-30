@@ -33,6 +33,7 @@ jobs:
         shell: pwsh
         run: |
           cd backend
+          if (Test-Path out) { Remove-Item -Recurse -Force out }
           mkdir out
           xcopy bin\resources out\resources /E /I /Y
           xcopy resources out\resources /E /I /Y
