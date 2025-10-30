@@ -20,6 +20,7 @@ export interface GameObjectData {
   objectId: number;
   nativePtr: number;
   isAboveUFO?: boolean; // Track if block is currently above UFO
+  visibilityFactor?: number; // Opacity factor based on distance from UFO (0 = transparent, 1 = opaque)
 }
 
 export interface PlayerState {

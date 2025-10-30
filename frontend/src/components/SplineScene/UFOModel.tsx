@@ -8,7 +8,7 @@ import { disposeObject } from "./threeUtils";
 import { CubicBezierCurve, Spline, createDefaultSplineSegment } from "./geometry";
 import { getEffectiveLevelLength, scaleSplineToEffectiveLength } from "./splineUtils";
 import { BackendConfigState, GameObjectData, PlayerState } from "./types";
-import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE, SPLINE_LENGTH_STEPS, SPLINE_UPDATE_PARAMETER_STEPS, GAME_COORDINATE_SCALE, PLAYER_Y_BASE_OFFSET, UFO_BLOCK_HIDE_X_THRESHOLD, UFO_BLOCK_HIDE_Y_THRESHOLD } from "./constants";
+import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE, SPLINE_LENGTH_STEPS, SPLINE_UPDATE_PARAMETER_STEPS, GAME_COORDINATE_SCALE, PLAYER_Y_BASE_OFFSET, UFO_BLOCK_HIDE_X_THRESHOLD, UFO_BLOCK_HIDE_Y_THRESHOLD, UFO_BLOCK_MIN_OPACITY, UFO_BLOCK_MAX_OPACITY } from "./constants";
 import { ObjectModelsMap } from "@/types/objectModels";
 
 interface UFOModelProps {
@@ -574,6 +574,24 @@ export function UFOModel({
 
         // Mark whether this block is above UFO
         gameObject.isAboveUFO = isAbove;
+
+        // Calculate visibility factor based on distance from UFO
+        if (isAbove) {
+          // Calculate normalized distance (0 = directly above, 1 = at threshold edge)
+          const xNormalized = xDiff / (UFO_BLOCK_HIDE_X_THRESHOLD * GAME_COORDINATE_SCALE);
+          const yNormalized = yDiff / (UFO_BLOCK_HIDE_Y_THRESHOLD * GAME_COORDINATE_SCALE);
+          
+          // Use Euclidean distance for smooth gradual fade
+          const distance = Math.sqrt(xNormalized * xNormalized + yNormalized * yNormalized);
+          
+          // Clamp distance to [0, 1] and interpolate opacity
+          const clampedDistance = Math.min(1, distance) / 3;
+          gameObject.visibilityFactor = UFO_BLOCK_MIN_OPACITY + 
+                                        (UFO_BLOCK_MAX_OPACITY - UFO_BLOCK_MIN_OPACITY) * clampedDistance;
+        } else {
+          // Full opacity for blocks not above UFO
+          gameObject.visibilityFactor = UFO_BLOCK_MAX_OPACITY;
+        }
       });
     }
   });

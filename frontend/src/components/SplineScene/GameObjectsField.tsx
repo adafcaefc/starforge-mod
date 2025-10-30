@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { GameObject } from "./GameObject";
+import { MemoizedGameObject as GameObject } from "./GameObject";
 import { Spline } from "./geometry";
 import { getEffectiveLevelLength } from "./splineUtils";
 import { GameObjectData, PlayerState } from "./types";
@@ -32,7 +32,10 @@ export function GameObjectsField({
     const now = Date.now();
     if (now - lastUpdateRef.current > 100) {
       const newObjects = gameObjectsRef.current;
-      setObjects([...newObjects]);
+      // Only update if the array actually changed (reference or length)
+      if (newObjects !== objects || newObjects.length !== objects.length) {
+        setObjects([...newObjects]);
+      }
       lastUpdateRef.current = now;
     }
   });
@@ -83,10 +86,12 @@ export function GameObjectsField({
   return (
     <>
       {objects.map((obj, index) => {
-        // Skip rendering if object is not visible (from level data) or is above UFO
-        if (obj.isAboveUFO === true) {
-          return null;
-        }
+        
+        // For now ignore this because the data sent from backend is not reliable
+        // // Skip rendering if object is not visible from level data
+        // if (obj.visible === false) {
+        //   return null;
+        // }
         
         const splineData = mapToSplineCoords(obj.x, obj.y);
         return (
@@ -101,6 +106,9 @@ export function GameObjectsField({
             nativePtr={obj.nativePtr}
             objectModelsDataRef={objectModelsDataRef}
             objectModelsVersion={objectModelsVersion}
+            visibilityFactor={obj.visibilityFactor ?? 1.0}
+            gameX={obj.x}
+            playerX={playerStateRef.current.p1x}
           />
         );
       })}
