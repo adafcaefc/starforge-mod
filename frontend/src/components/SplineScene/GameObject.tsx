@@ -170,7 +170,7 @@ export function GameObject({
     // This is MUCH faster than updating material properties
     if (isNearPlayer && (visibilityFactor !== 1.0 || lastVisibilityFactorRef.current !== 1.0)) {
       const visibilityDiff = Math.abs(visibilityFactor - lastVisibilityFactorRef.current);
-      if (visibilityDiff > 0.01) {
+      if (visibilityDiff > 0.001) {
         // Try to get cached materials at the new opacity level
         const newCachedMaterials = selectedModel ? getCachedMaterials(selectedModel, visibilityFactor) : null;
         
@@ -178,7 +178,7 @@ export function GameObject({
           // Only swap if we're actually changing to a different opacity level
           // This avoids redundant GPU updates when opacity hasn't changed enough
           const targetOpacity = newCachedMaterials[0]?.opacity ?? visibilityFactor;
-          if (Math.abs(targetOpacity - currentOpacityLevelRef.current) > 0.05) {
+          if (Math.abs(targetOpacity - currentOpacityLevelRef.current) > 0.02) {
             // Swap to pre-cached materials - instant material change!
             let materialIndex = 0;
             const meshes = meshesRef.current;
@@ -224,7 +224,7 @@ export function GameObject({
       
       if (fullOpacityMaterials && fullOpacityMaterials.length > 0) {
         // Only swap if not already at full opacity
-        if (Math.abs(currentOpacityLevelRef.current - 1.0) > 0.05) {
+        if (Math.abs(currentOpacityLevelRef.current - 1.0) > 0.02) {
           let materialIndex = 0;
           const meshes = meshesRef.current;
           for (let i = 0; i < meshes.length; i++) {
