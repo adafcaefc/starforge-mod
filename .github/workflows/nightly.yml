@@ -42,8 +42,8 @@ jobs:
           cp logo.png out/
           cp mod.json out/
           cp build/*.dll out/
-          Remove-Item -Path 'out\*.psd' -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -Path 'out\*.blend' -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item out\*.psd -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item out\*.blend -Recurse -Force -ErrorAction SilentlyContinue
           cd out
           7z a -tzip adaf.starforge.geode -mx9 *
          
