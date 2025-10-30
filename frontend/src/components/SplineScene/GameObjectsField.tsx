@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { MemoizedGameObject as GameObject } from "./GameObject";
+import { InstancedGameObjectGroup, GameObjectInstanceData, InstanceGroup } from "./InstancedGameObjects";
 import { Spline } from "./geometry";
 import { getEffectiveLevelLength } from "./splineUtils";
 import { GameObjectData, PlayerState } from "./types";
@@ -28,6 +29,25 @@ export function GameObjectsField({
   const [objects, setObjects] = useState<GameObjectData[]>([]);
   const lastUpdateRef = useRef<number>(0);
 
+  // Helper function to get model name for an object
+  const getModelName = (obj: GameObjectData): string | null => {
+    const objectModelData = objectModelsDataRef.current[obj.objectId.toString()];
+    if (!objectModelData || !objectModelData.modelTextures.length) {
+      return null;
+    }
+    
+    const hash32 = (n: number) => {
+      let value = n | 0;
+      value = ((value >>> 16) ^ value) * 0x45d9f3b;
+      value = ((value >>> 16) ^ value) * 0x45d9f3b;
+      value = (value >>> 16) ^ value;
+      return value >>> 0;
+    };
+    
+    const modelIndex = hash32(obj.nativePtr) % objectModelData.modelTextures.length;
+    return objectModelData.modelTextures[modelIndex];
+  };
+
   useFrame(() => {
     const now = Date.now();
     if (now - lastUpdateRef.current > 100) {
@@ -44,7 +64,7 @@ export function GameObjectsField({
     const spline = splineRef.current;
     if (spline.segments.length === 0) {
       return {
-        position: [0, 0, 0] as [number, number, number],
+        position: new THREE.Vector3(0, 0, 0),
         tangent: new THREE.Vector3(0, 0, 1),
         normal: new THREE.Vector3(0, 1, 0),
       };
@@ -77,27 +97,99 @@ export function GameObjectsField({
     const yOffset = gameY / GAME_COORDINATE_SCALE;
 
     return {
-      position: [position.x, position.y + yOffset, position.z] as [number, number, number],
+      position: new THREE.Vector3(position.x, position.y + yOffset, position.z),
       tangent,
       normal,
     };
   };
 
+  // Group objects for instanced rendering
+  const { instancedGroups, individualObjects } = useMemo(() => {
+    const groups: Map<string, InstanceGroup> = new Map();
+    const individual: Array<{ obj: GameObjectData; index: number }> = [];
+    
+    const OPACITY_THRESHOLD = 0.05; // Group objects with similar opacity
+    const MAX_VISIBILITY_OPACITY = 1.0;
+    
+    objects.forEach((obj, index) => {
+      const modelName = getModelName(obj);
+      if (!modelName) {
+        return;
+      }
+      
+      const opacity = obj.visibilityFactor ?? 1.0;
+      const scaleKey = `${obj.scaleX.toFixed(2)}x${obj.scaleY.toFixed(2)}`;
+      
+      // Objects with non-max visibility must be rendered individually for proper opacity control
+      if (opacity < MAX_VISIBILITY_OPACITY - OPACITY_THRESHOLD) {
+        individual.push({ obj, index });
+        return;
+      }
+      
+      // Round opacity to nearest 0.1 for grouping
+      const roundedOpacity = Math.round(opacity * 10) / 10;
+      
+      // Group by model and scale variant (objects with different scales are grouped separately)
+      const groupKey = `${modelName}_${roundedOpacity}_${scaleKey}`;
+      
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          modelName,
+          opacity: roundedOpacity,
+          scaleVariant: scaleKey,
+          instances: [],
+        });
+      }
+      
+      const splineData = mapToSplineCoords(obj.x, obj.y);
+      groups.get(groupKey)!.instances.push({
+        object: obj,
+        position: splineData.position,
+        tangent: splineData.tangent,
+        normal: splineData.normal,
+        rotation: obj.rotation,
+        scale: [obj.scaleX, obj.scaleY],
+        nativePtr: obj.nativePtr,
+        gameX: obj.x,
+      });
+    });
+    
+    return {
+      instancedGroups: Array.from(groups.values()),
+      individualObjects: individual,
+    };
+  }, [objects, objectModelsVersion, objectModelsDataRef]);
+
   return (
     <>
-      {objects.map((obj, index) => {
+      {/* Render instanced groups */}
+      {instancedGroups.map((group) => {
+        // Only instance if we have more than 1 object (otherwise individual rendering is fine)
+        if (group.instances.length === 0) return null;
         
-        // For now ignore this because the data sent from backend is not reliable
-        // // Skip rendering if object is not visible from level data
-        // if (obj.visible === false) {
-        //   return null;
-        // }
+        // Get the first object's ID for model data lookup
+        const firstObj = group.instances[0].object;
         
+        return (
+          <InstancedGameObjectGroup
+            key={`instanced_${group.modelName}_${group.opacity}_${group.scaleVariant}`}
+            instances={group.instances}
+            modelName={group.modelName}
+            opacity={group.opacity}
+            objectId={firstObj.objectId}
+            objectModelsDataRef={objectModelsDataRef}
+            baseScale={0.12}
+          />
+        );
+      })}
+      
+      {/* Render individual objects (non-max visibility) */}
+      {individualObjects.map(({ obj, index }) => {
         const splineData = mapToSplineCoords(obj.x, obj.y);
         return (
           <GameObject
             key={`${obj.objectId}-${index}`}
-            position={splineData.position}
+            position={[splineData.position.x, splineData.position.y, splineData.position.z]}
             tangent={splineData.tangent}
             normal={splineData.normal}
             scale={[obj.scaleX, obj.scaleY]}

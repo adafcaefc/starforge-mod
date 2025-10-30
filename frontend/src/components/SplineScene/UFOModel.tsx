@@ -8,7 +8,7 @@ import { disposeObject } from "./threeUtils";
 import { CubicBezierCurve, Spline, createDefaultSplineSegment } from "./geometry";
 import { getEffectiveLevelLength, scaleSplineToEffectiveLength } from "./splineUtils";
 import { BackendConfigState, GameObjectData, PlayerState } from "./types";
-import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE, SPLINE_LENGTH_STEPS, SPLINE_UPDATE_PARAMETER_STEPS, GAME_COORDINATE_SCALE, PLAYER_Y_BASE_OFFSET, UFO_BLOCK_HIDE_X_THRESHOLD, UFO_BLOCK_HIDE_Y_THRESHOLD, UFO_BLOCK_MIN_OPACITY, UFO_BLOCK_MAX_OPACITY, UFO_BLOCK_FADE_DISTANCE_FACTOR } from "./constants";
+import { GAME_MODE_EDITOR, PLAYER_ROTATION_SCALE, SPLINE_LENGTH_STEPS, SPLINE_UPDATE_PARAMETER_STEPS, GAME_COORDINATE_SCALE, PLAYER_Y_BASE_OFFSET, HIDE_Y_BASE_OFFSET, UFO_BLOCK_HIDE_X_THRESHOLD, UFO_BLOCK_HIDE_Y_THRESHOLD, UFO_BLOCK_MIN_OPACITY, UFO_BLOCK_MAX_OPACITY, UFO_BLOCK_FADE_DISTANCE_FACTOR } from "./constants";
 import { ObjectModelsMap } from "@/types/objectModels";
 
 interface UFOModelProps {
@@ -563,7 +563,7 @@ export function UFOModel({
         const xDiff = Math.abs(gameObject.x - playerX);
         
         // Compare Y offsets: both are offsets from the spline in game coordinates
-        const ufoYOffset = playerY - PLAYER_Y_BASE_OFFSET;
+        const ufoYOffset = playerY - PLAYER_Y_BASE_OFFSET - HIDE_Y_BASE_OFFSET;
         const blockYOffset = gameObject.y;
         const yDiff = blockYOffset - ufoYOffset;
         
