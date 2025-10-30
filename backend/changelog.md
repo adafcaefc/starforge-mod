@@ -1,3 +1,7 @@
+# v1.0.0-beta.4
+- Improved performance by using instanced rendering
+- Blocks above you now does not block your view
+
 # v1.0.0-beta.3
 - Updated about.md
 

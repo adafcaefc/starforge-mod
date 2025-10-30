@@ -9,6 +9,8 @@ copy about.md out\about.md
 copy changelog.md out\
 copy logo.png out\
 copy mod.json out\
+del /S /Q out\*.psd
+del /S /Q out\*.blend
 for /R build %%f in (*.dll) do copy "%%f" "out\"
 
 cd out
