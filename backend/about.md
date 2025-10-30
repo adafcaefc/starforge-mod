@@ -97,3 +97,4 @@ Special thanks to all contributors, testers, and helpers.
 - [maxnut](https://github.com/maxnut)  
 - [RainixGD](https://github.com/RainixGD)  
 - [A145](https://www.youtube.com/@A145)
+- [YellowCat98](https://github.com/YellowCat98)
