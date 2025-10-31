@@ -42,8 +42,8 @@ jobs:
           cp logo.png out/
           cp mod.json out/
           cp build/*.dll out/
-          cmd /c "del /s /q out\*.psd"
-          cmd /c "del /s /q out\*.blend"
+          cmd /c "del /s /q out\\*.psd"
+          cmd /c "del /s /q out\\*.blend"
           cd out
           7z a -tzip adaf.starforge.geode -mx9 *
          
