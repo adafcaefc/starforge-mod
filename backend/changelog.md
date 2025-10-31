@@ -1,3 +1,8 @@
+# v1.0.0-beta.5
+- Added batch rendering
+- Improved visibility when inside a block
+- Updated level
+
 # v1.0.0-beta.4
 - Improved performance by using instanced rendering
 - Blocks above you now does not block your view
